@@ -356,6 +356,14 @@ document.querySelectorAll('.ni').forEach(el=>{
 // ── TOAST ──
 function toast(msg,d=2800){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',d);}
 
+// ── XLSX GUARD (CDN offline / blocked) ──
+function ensureXLSX(){
+  if(window.XLSX)return true;
+  SE('emp-err','Libreria Excel non disponibile. Verifica la connessione internet o consenti l\'accesso a cdnjs.cloudflare.com.');
+  toast('⚠ Funzione Excel non disponibile (libreria XLSX non caricata)');
+  return false;
+}
+
 // ══════════════════════════════════════════
 //  DATE HELPERS
 // ══════════════════════════════════════════
@@ -491,6 +499,7 @@ function buildMatrix(proj,alloc){
 //  XLSX TEMPLATE (single sheet, 6 cols)
 // ══════════════════════════════════════════
 function downloadTemplate(){
+  if(!ensureXLSX())return;
   const rows=[
     ['Nome dipendente','Azienda','Sede','Data','Ore lavorate','Ore su altro'],
     ['Mario Rossi','Acme Srl','Milano','01/01/2024',8,0],
@@ -514,6 +523,7 @@ function downloadTemplate(){
 // ══════════════════════════════════════════
 document.getElementById('fi-xl').addEventListener('change',function(e){
   const file=e.target.files[0];if(!file)return;
+  if(!ensureXLSX()){e.target.value='';return;}
   const rd=new FileReader();
   rd.onload=ev=>{
     try{
@@ -551,6 +561,7 @@ document.getElementById('fi-xl').addEventListener('change',function(e){
 //  EXPORT XLSX (single sheet, 6 cols)
 // ══════════════════════════════════════════
 function exportXL(){
+  if(!ensureXLSX())return;
   if(!S.rows.length){toast('⚠ Nessun dato da esportare');return;}
   const data=S.rows.map(r=>({
     'Nome dipendente':r.name,'Azienda':r.company,'Sede':r.location,
