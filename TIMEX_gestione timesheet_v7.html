@@ -127,6 +127,8 @@ tfoot td{padding:8px 11px;font-weight:700;background:var(--s3);border-top:1px so
 /* ── OTHER HOURS inline input ── */
 .oth-inp{background:var(--s3);border:1px solid var(--b2);color:var(--t1);border-radius:6px;padding:5px 8px;font-size:12px;font-family:'Consolas',monospace;width:82px;outline:none;text-align:right;transition:border-color .15s;}
 .oth-inp:focus{border-color:var(--acc);}
+.day-inp{background:var(--s3);border:1px solid var(--b2);color:var(--t1);border-radius:6px;padding:5px 8px;font-size:12px;font-family:'Consolas',monospace;width:88px;outline:none;text-align:right;transition:border-color .15s;}
+.day-inp:focus{border-color:var(--acc);}
 /* ── MANUAL ENTRY FORM ── */
 .manual-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;}
 /* ── TOAST ── */
@@ -308,6 +310,13 @@ tfoot td{padding:8px 11px;font-weight:700;background:var(--s3);border-top:1px so
     <div class="ph-row">
       <div><h2>Timesheet PDF</h2><p>Matrice mese × giorno · una pagina per dipendente per progetto</p></div>
       <button class="btn bp" onclick="genAllPDF()">↓ PDF Tutti i Progetti</button>
+    </div>
+  </div>
+  <div class="card mb3">
+    <div class="ct"><span class="ci">🔎</span>Filtri visualizzazione</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><label>Tipologia progetto</label><select id="ts-filter-type" onchange="renderTS()"><option value="">Tutte le tipologie</option></select></div>
+      <div><label>Dipendente</label><select id="ts-filter-emp" onchange="renderTS()"><option value="">Tutti i dipendenti</option></select></div>
     </div>
   </div>
   <div id="ts-content"><div class="empty"><div class="ei">📄</div><div class="et">Nessun dato</div><div class="es">Importa dati, crea progetti e assegna ore</div></div></div>
@@ -687,6 +696,26 @@ function manualAddRow(){
   toast(`✓ Riga aggiunta per ${name}`);
 }
 
+// ── Update worked hours for a specific row ──
+function setRowHours(rowId,val){
+  const row=S.rows.find(r=>r.id===rowId);if(!row)return;
+  const nh=rQ(Math.max(0,parseFloat(val)||0));
+  const oldHours=rQ(parseFloat(row.hours)||0);
+  const oldOth=rQ(parseFloat(row.othHours)||0);
+  if(oldOth>nh){toast(`⚠ Ore lavorate (${nh}h) non può essere inferiore a ore su altro (${oldOth}h) per quel giorno`);renderEmps();return;}
+  const delta=nh-oldHours;
+  const emp=getEmployees().find(e=>e.name===row.name);
+  if(emp){
+    const newTotalNet=rQ(emp.totalNetHours+delta);
+    const assigned=empAssignedTotal(row.name);
+    if(assigned>newTotalNet+0.001){
+      toast(`⚠ Con ${nh}h lavorate in questo giorno, le ore assegnate su progetti (${assigned.toFixed(2)}h) supererebbero le ore nette disponibili (${newTotalNet.toFixed(2)}h).`);
+      renderEmps();return;
+    }
+  }
+  row.hours=nh;
+  renderEmps(); renderDash(); renderAssCards(); renderTS();
+}
 // ── Update othHours for a specific row ──
 function setRowOth(rowId,val){
   const row=S.rows.find(r=>r.id===rowId);if(!row)return;
@@ -705,7 +734,7 @@ function setRowOth(rowId,val){
     }
   }
   row.othHours=oh;
-  renderEmps(); renderDash(); renderAssCards();
+  renderEmps(); renderDash(); renderAssCards(); renderTS();
 }
 // ── Delete a row ──
 function deleteRow(rowId){
@@ -753,7 +782,10 @@ function renderEmps(){
     <td style="color:var(--t3)">${esc(r.company)||'—'}</td>
     <td style="color:var(--t3)">${esc(r.location)||'—'}</td>
     <td class="mono">${esc(r.date)||'—'}</td>
-    <td class="mono r">${(parseFloat(r.hours)||0).toFixed(2)}h</td>
+    <td class="c"><input class="day-inp" type="number" min="0" step="0.25"
+      value="${(parseFloat(r.hours)||0).toFixed(2)}" placeholder="0"
+      onchange="setRowHours('${r.id}',this.value)"
+      title="Ore lavorate per questo giorno"/></td>
     <td class="c"><input class="oth-inp" type="number" min="0" step="0.25"
       value="${r.othHours||''}" placeholder="0"
       onchange="setRowOth('${r.id}',this.value)"
@@ -958,55 +990,88 @@ function removeAss(id){
 // ══════════════════════════════════════════
 //  TIMESHEETS PAGE
 // ══════════════════════════════════════════
+function updateTSFilters(){
+  const typeSel=document.getElementById('ts-filter-type');
+  const empSel=document.getElementById('ts-filter-emp');
+  if(!typeSel||!empSel)return;
+  const curType=typeSel.value||'';
+  const curEmp=empSel.value||'';
+  const types=[...new Set(S.projects.map(p=>(p.type||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'it'));
+  const emps=[...new Set(S.assignments.map(a=>a.empName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'it'));
+  typeSel.innerHTML=`<option value="">Tutte le tipologie</option>${types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}`;
+  empSel.innerHTML=`<option value="">Tutti i dipendenti</option>${emps.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('')}`;
+  if(types.includes(curType))typeSel.value=curType;
+  if(emps.includes(curEmp))empSel.value=curEmp;
+}
 function renderTS(){
+  updateTSFilters();
   const el=document.getElementById('ts-content');
+  const typeFilter=(document.getElementById('ts-filter-type')?.value||'').trim();
+  const empFilter=(document.getElementById('ts-filter-emp')?.value||'').trim();
   const actP=S.projects.filter(p=>S.assignments.some(a=>a.projectId===p.id));
   if(!actP.length){el.innerHTML='<div class="empty"><div class="ei">📄</div><div class="et">Nessun dato</div><div class="es">Importa dati, crea progetti e assegna ore</div></div>';return;}
   const alloc=buildAlloc();
-  el.innerHTML=actP.map(proj=>{
-    const matrix=buildMatrix(proj,alloc);if(!matrix.length)return '';
-    const totH=S.assignments.filter(a=>a.projectId===proj.id).reduce((s,a)=>s+a.hours,0);
-    const empSecs=matrix.map(emp=>{
-      if(!emp.months.length)return `<div style="padding:7px 0;font-size:12px;color:var(--t3)">👤 ${esc(emp.empName)} — nessun giorno nel periodo.</div>`;
-      const hdC=Array.from({length:31},(_,i)=>`<th class="c">${i+1}</th>`).join('');
-      const bRows=emp.months.map(({year,month,days})=>{
-        const mTot=Object.values(days).reduce((s,h)=>s+h,0);
-        const cells=Array.from({length:31},(_,i)=>{const h=days[i+1]||0;return h>0?`<td class="hv">${h%1===0?h:h.toFixed(2)}</td>`:`<td class="z">·</td>`;}).join('');
-        return `<tr><td class="mn">${M_SH[month]} ${year}</td>${cells}<td class="tot">${mTot.toFixed(2)}</td></tr>`;
-      }).join('');
-      const fC=Array.from({length:31},(_,i)=>{const t=emp.months.reduce((s,{days})=>s+(days[i+1]||0),0);return t>0?`<td style="font-weight:600;color:var(--t2)">${t%1===0?t:t.toFixed(2)}</td>`:`<td class="z">·</td>`;}).join('');
-      const gTot=emp.months.reduce((s,{days})=>s+Object.values(days).reduce((ss,h)=>ss+h,0),0);
-      const safeEmp=esc(emp.empName).replace(/'/g,"\\'");
-      return `<div style="margin-bottom:13px;">
-        <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          👤 ${esc(emp.empName)}
-          <span class="mono" style="font-size:10px;color:var(--t3)">${emp.assignedHours.toFixed(2)}h · ${emp.perH.toFixed(2)}h nette nel periodo</span>
-          <input id="ts-ah-${emp.assignId}" type="number" min="0.25" step="0.25" value="${emp.assignedHours.toFixed(2)}" style="width:84px;padding:4px 6px;font-size:12px"/>
-          <button class="btn bs bxs" onclick="saveTSAss('${emp.assignId}')">Salva ore</button>
-          <button class="btn bbl bxs" onclick="genEmpPDF('${proj.id}','${safeEmp}')">↓ PDF</button>
-        </div>
-        <div class="mxw"><table>
-          <thead><tr><th style="text-align:left;min-width:48px">Mese</th>${hdC}<th class="r" style="min-width:42px;border-left:1px solid var(--b2)">Tot.</th></tr></thead>
-          <tbody>${bRows}</tbody>
-          <tfoot><tr><td class="mn" style="font-size:9px">TOT.</td>${fC}<td class="tot">${gTot.toFixed(2)}</td></tr></tfoot>
-        </table></div>
-      </div>`;
-    }).join('');
-    return `<div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:13px;overflow:hidden;">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
-            <span class="dot" style="background:${proj.color};width:10px;height:10px"></span>
-            <span style="font-family:'Epilogue',sans-serif;font-weight:700;font-size:15px;color:${proj.color}">${esc(proj.name)}</span>
-            <span class="badge" style="background:${proj.color}18;color:${proj.color}">${esc(proj.type)}</span>
+  const projects=actP.filter(p=>!typeFilter||p.type===typeFilter);
+  const groups={};
+  projects.forEach(p=>{const k=(p.type||'Senza tipologia').trim()||'Senza tipologia';(groups[k]=groups[k]||[]).push(p);});
+  const groupKeys=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'it'));
+  const html=groupKeys.map(gk=>{
+    const cards=groups[gk].map(proj=>{
+      const matrix=buildMatrix(proj,alloc)
+        .filter(emp=>!empFilter||emp.empName===empFilter)
+        .filter(emp=>emp.months.length>0);
+      if(!matrix.length)return '';
+      const totH=S.assignments
+        .filter(a=>a.projectId===proj.id)
+        .filter(a=>!empFilter||a.empName===empFilter)
+        .reduce((s,a)=>s+a.hours,0);
+      const empSecs=matrix.map(emp=>{
+        const hdC=Array.from({length:31},(_,i)=>`<th class="c">${i+1}</th>`).join('');
+        const bRows=emp.months.map(({year,month,days})=>{
+          const mTot=Object.values(days).reduce((s,h)=>s+h,0);
+          const cells=Array.from({length:31},(_,i)=>{const h=days[i+1]||0;return h>0?`<td class="hv">${h%1===0?h:h.toFixed(2)}</td>`:`<td class="z">·</td>`;}).join('');
+          return `<tr><td class="mn">${M_SH[month]} ${year}</td>${cells}<td class="tot">${mTot.toFixed(2)}</td></tr>`;
+        }).join('');
+        const fC=Array.from({length:31},(_,i)=>{const t=emp.months.reduce((s,{days})=>s+(days[i+1]||0),0);return t>0?`<td style="font-weight:600;color:var(--t2)">${t%1===0?t:t.toFixed(2)}</td>`:`<td class="z">·</td>`;}).join('');
+        const gTot=emp.months.reduce((s,{days})=>s+Object.values(days).reduce((ss,h)=>ss+h,0),0);
+        const safeEmp=esc(emp.empName).replace(/'/g,"\\'");
+        return `<div style="margin-bottom:13px;">
+          <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            👤 ${esc(emp.empName)}
+            <span class="mono" style="font-size:10px;color:var(--t3)">${emp.assignedHours.toFixed(2)}h · ${emp.perH.toFixed(2)}h nette nel periodo</span>
+            <input id="ts-ah-${emp.assignId}" type="number" min="0.25" step="0.25" value="${emp.assignedHours.toFixed(2)}" style="width:84px;padding:4px 6px;font-size:12px"/>
+            <button class="btn bs bxs" onclick="saveTSAss('${emp.assignId}')">Salva ore</button>
+            <button class="btn bbl bxs" onclick="genEmpPDF('${proj.id}','${safeEmp}')">↓ PDF</button>
           </div>
-          <div style="font-size:11px;color:var(--t3)">${matrix.length} dip. · ${totH.toFixed(2)}h${proj.selectedMonths?` · ${proj.selectedMonths.length} mes${proj.selectedMonths.length===1?'e':'i'}`:' · tutti i mesi'}</div>
+          <div class="mxw"><table>
+            <thead><tr><th style="text-align:left;min-width:48px">Mese</th>${hdC}<th class="r" style="min-width:42px;border-left:1px solid var(--b2)">Tot.</th></tr></thead>
+            <tbody>${bRows}</tbody>
+            <tfoot><tr><td class="mn" style="font-size:9px">TOT.</td>${fC}<td class="tot">${gTot.toFixed(2)}</td></tr></tfoot>
+          </table></div>
+        </div>`;
+      }).join('');
+      return `<div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:13px;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+              <span class="dot" style="background:${proj.color};width:10px;height:10px"></span>
+              <span style="font-family:'Epilogue',sans-serif;font-weight:700;font-size:15px;color:${proj.color}">${esc(proj.name)}</span>
+              <span class="badge" style="background:${proj.color}18;color:${proj.color}">${esc(proj.type)}</span>
+            </div>
+            <div style="font-size:11px;color:var(--t3)">${matrix.length} dip. · ${totH.toFixed(2)}h${proj.selectedMonths?` · ${proj.selectedMonths.length} mes${proj.selectedMonths.length===1?'e':'i'}`:' · tutti i mesi'}</div>
+          </div>
+          <button class="btn bgr bsm" onclick="genProjPDF('${proj.id}')">↓ PDF Progetto</button>
         </div>
-        <button class="btn bgr bsm" onclick="genProjPDF('${proj.id}')">↓ PDF Progetto</button>
-      </div>
-      <div style="padding:14px 16px;">${empSecs}</div>
+        <div style="padding:14px 16px;">${empSecs}</div>
+      </div>`;
+    }).filter(Boolean).join('');
+    if(!cards)return '';
+    return `<div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--t3);margin-bottom:8px;">Tipologia: ${esc(gk)}</div>
+      ${cards}
     </div>`;
-  }).join('');
+  }).filter(Boolean).join('');
+  el.innerHTML=html||'<div class="empty"><div class="ei">🔎</div><div class="et">Nessun risultato</div><div class="es">Modifica i filtri per visualizzare i timesheet</div></div>';
 }
 function saveTSAss(id){
   const inp=document.getElementById('ts-ah-'+id);
