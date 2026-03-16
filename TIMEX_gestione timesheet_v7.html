@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="it" id="root" class="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>TIMEX · Gestione Timesheet</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23F4A228'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='38' font-family='system-ui'>⏱</text></svg>"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;600;700;900&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+html.dark{--bg:#07080F;--s1:#0E1019;--s2:#13151E;--s3:#191C28;--b1:#1F2235;--b2:#2B2F4A;--b3:#363B5E;--t1:#EEF0FF;--t2:#9DA3C8;--t3:#545880;--sh:0 4px 24px rgba(0,0,0,.55);--hv:rgba(255,255,255,.022);}
+html.light{--bg:#E8EAF4;--s1:#FFFFFF;--s2:#F4F5FB;--s3:#ECEEF8;--b1:#D4D7EE;--b2:#BEC3DE;--b3:#9298C0;--t1:#12132A;--t2:#3D4370;--t3:#7A82B5;--sh:0 4px 20px rgba(0,0,0,.08);--hv:rgba(0,0,0,.018);}
+:root{--acc:#F4A228;--acc2:rgba(244,162,40,.13);--acc3:rgba(244,162,40,.06);--gn:#22D3A0;--bl:#5B9CF6;--rd:#F05454;--pu:#A78BFA;--r:8px;--r2:12px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--t1);font-family:'Figtree',sans-serif;font-size:14px;}
+::selection{background:var(--acc2);color:var(--acc);}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--s1);}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px;}
+/* ── LAYOUT ── */
+.shell{display:flex;height:100vh;overflow:hidden;}
+.sidebar{width:222px;min-width:222px;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;transition:background .2s;}
+.main{flex:1;overflow-y:auto;background:var(--bg);}
+.content{padding:26px 32px;max-width:1120px;}
+/* ── SIDEBAR ── */
+.logo{padding:18px 16px 15px;border-bottom:1px solid var(--b1);}
+.logo-m{font-family:'Epilogue',sans-serif;font-size:18px;font-weight:900;color:var(--acc);letter-spacing:-.5px;}
+.logo-s{font-size:10px;color:var(--t3);margin-top:2px;text-transform:uppercase;letter-spacing:1px;}
+.nav{padding:5px 0;flex:1;overflow-y:auto;}
+.ni{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:500;color:var(--t3);border-left:2px solid transparent;transition:all .13s;user-select:none;}
+.ni:hover{color:var(--t1);background:var(--hv);}
+.ni.active{color:var(--acc);background:var(--acc3);border-left-color:var(--acc);}
+.ni .ico{font-size:15px;width:20px;text-align:center;}
+.sbf{padding:11px 14px;border-top:1px solid var(--b1);}
+.sb-st{font-size:10px;color:var(--t3);margin-bottom:8px;line-height:1.8;}.sb-st span{color:var(--t2);font-weight:600;}
+.sbsep{height:1px;background:var(--b1);margin:7px 0;}
+.sblbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--t3);margin-bottom:5px;}
+.theme-btn{display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:var(--r);background:var(--s3);border:1px solid var(--b2);cursor:pointer;font-size:12px;font-weight:600;color:var(--t2);width:100%;transition:all .13s;}
+.theme-btn:hover{border-color:var(--acc);color:var(--acc);}
+/* ── PAGE HEADER ── */
+.ph{margin-bottom:20px;}.ph h2{font-family:'Epilogue',sans-serif;font-size:21px;font-weight:900;color:var(--t1);letter-spacing:-.4px;}.ph p{color:var(--t3);font-size:12px;margin-top:3px;}
+.ph-row{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;}
+/* ── CARD ── */
+.card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);padding:18px;transition:background .2s;}
+.ct{font-family:'Epilogue',sans-serif;font-size:13px;font-weight:700;color:var(--t1);margin-bottom:12px;display:flex;align-items:center;gap:6px;}.ci{color:var(--acc);}
+/* ── STAT BOXES ── */
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+.sb-box{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);padding:13px 15px;}
+.sl{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--t3);margin-bottom:5px;}
+.sv{font-family:'Epilogue',sans-serif;font-size:22px;font-weight:900;color:var(--t1);}
+.ss{font-size:11px;color:var(--t3);margin-top:2px;}
+/* ── FORMS ── */
+label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);display:block;margin-bottom:4px;}
+input,select{background:var(--s3);border:1px solid var(--b2);color:var(--t1);border-radius:var(--r);padding:8px 11px;font-size:13px;font-family:'Figtree',sans-serif;width:100%;outline:none;transition:border-color .15s;}
+input:focus,select:focus{border-color:var(--acc);}
+input::placeholder{color:var(--t3);}
+select option{background:var(--s3);}
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--r);border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Figtree',sans-serif;transition:all .13s;white-space:nowrap;}
+.bp{background:var(--acc);color:#07080F;}.bp:hover{background:#e59420;transform:translateY(-1px);}
+.bs{background:var(--s3);color:var(--t1);border:1px solid var(--b2);}.bs:hover{border-color:var(--acc);color:var(--acc);}
+.bg{background:transparent;color:var(--t2);border:1px solid var(--b1);}.bg:hover{border-color:var(--b2);color:var(--t1);}
+.bd{background:rgba(240,84,84,.1);color:var(--rd);border:1px solid rgba(240,84,84,.2);}.bd:hover{background:rgba(240,84,84,.2);}
+.bgr{background:rgba(34,211,160,.1);color:var(--gn);border:1px solid rgba(34,211,160,.22);}.bgr:hover{background:rgba(34,211,160,.2);}
+.bbl{background:rgba(91,156,246,.1);color:var(--bl);border:1px solid rgba(91,156,246,.22);}.bbl:hover{background:rgba(91,156,246,.2);}
+.bw{width:100%;justify-content:center;}.bsm{padding:4px 9px;font-size:11px;border-radius:6px;}.bxs{padding:3px 7px;font-size:10px;border-radius:5px;}
+/* ── TABLE ── */
+.tw{border:1px solid var(--b1);border-radius:var(--r2);overflow:hidden;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+thead tr{background:var(--s3);}
+th{padding:7px 11px;font-size:9.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);font-weight:600;text-align:left;border-bottom:1px solid var(--b1);}
+th.r,td.r{text-align:right;}th.c,td.c{text-align:center;}
+td{padding:9px 11px;border-bottom:1px solid var(--b1);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}tbody tr:hover td{background:var(--hv);}
+tfoot td{padding:8px 11px;font-weight:700;background:var(--s3);border-top:1px solid var(--b2);}
+.mono{font-family:'Consolas',monospace;font-size:11.5px;}
+/* ── MATRIX ── */
+.mxw{overflow-x:auto;border:1px solid var(--b1);border-radius:var(--r);}
+.mxw table{font-size:10px;min-width:max-content;}
+.mxw th{padding:5px 3px;font-size:8.5px;}
+.mxw td{padding:4px 3px;text-align:center;font-family:'Consolas',monospace;font-size:9px;}
+.mxw td.mn{text-align:left;font-family:'Figtree',sans-serif;font-size:11px;font-weight:600;color:var(--t2);padding:4px 8px;white-space:nowrap;}
+.mxw td.z{color:var(--b3);}.mxw td.hv{color:var(--t1);}
+.mxw td.tot{font-weight:700;color:var(--acc);background:var(--acc3);border-left:1px solid var(--b2);}
+.mxw tfoot td{font-size:9px;text-align:center;font-family:'Consolas',monospace;}
+.mxw tfoot td.mn{text-align:left;font-family:'Figtree',sans-serif;}
+/* ── MONTH CHIPS ── */
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0;}
+.chip{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;user-select:none;border:1px solid var(--b2);color:var(--t3);background:transparent;transition:all .12s;}
+.chip.on{border-color:var(--acc);color:var(--acc);background:var(--acc3);}.chip:hover:not(.on){border-color:var(--t2);color:var(--t2);}
+/* ── ASSIGN CARD ── */
+.pac{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:12px;overflow:hidden;}
+.pac-hdr{padding:12px 15px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;}.pac-hdr:hover{background:var(--hv);}
+.pac-title{display:flex;align-items:center;gap:9px;}
+.pac-name{font-family:'Epilogue',sans-serif;font-size:14px;font-weight:700;}
+.pac-type{font-size:11px;color:var(--t3);border:1px solid var(--b2);padding:2px 8px;border-radius:20px;}
+.pac-body{border-top:1px solid var(--b1);padding:13px 15px;}
+.pac-body.closed{display:none;}
+.pac-sub{font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;}
+.emp-r{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:7px 10px;border-radius:var(--r);background:var(--s3);margin-bottom:5px;}
+.emp-r:last-of-type{margin-bottom:0;}
+.emp-rn{font-size:12px;font-weight:600;}.emp-rh{font-size:11px;color:var(--t3);font-family:'Consolas',monospace;}
+/* ── TIPOLOGIE ── */
+.tipo-row{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.tipo-label{font-size:12px;font-weight:600;width:185px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tipo-bar-wrap{flex:1;height:18px;background:var(--b1);border-radius:4px;overflow:hidden;}
+.tipo-bar{height:100%;border-radius:4px;transition:width .4s;}
+.tipo-val{font-family:'Consolas',monospace;font-size:11px;color:var(--t2);width:52px;text-align:right;flex-shrink:0;}
+/* ── MISC ── */
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.prog{height:4px;background:var(--b1);border-radius:2px;overflow:hidden;margin-top:4px;}
+.pf{height:100%;border-radius:2px;transition:width .4s;}
+.flex{display:flex;}.ic{align-items:center;}.jb{justify-content:space-between;}.fw{flex-wrap:wrap;}
+.g2{gap:8px;}.g3{gap:12px;}.g4{gap:16px;}
+.mb3{margin-bottom:12px;}.mb4{margin-bottom:16px;}.mt3{margin-top:12px;}.mt4{margin-top:16px;}
+.g2c{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+.err{background:rgba(240,84,84,.09);border:1px solid rgba(240,84,84,.25);border-radius:var(--r);padding:9px 12px;font-size:12px;color:#fc8181;margin-bottom:10px;}
+.inf{background:rgba(91,156,246,.09);border:1px solid rgba(91,156,246,.25);border-radius:var(--r);padding:9px 12px;font-size:12px;color:#93c5fd;}
+.warn{background:rgba(244,162,40,.09);border:1px solid rgba(244,162,40,.25);border-radius:var(--r);padding:9px 12px;font-size:12px;color:#fbbf24;}
+.empty{text-align:center;padding:40px 20px;color:var(--t3);}.ei{font-size:26px;margin-bottom:7px;}.et{font-size:14px;font-weight:600;color:var(--t2);margin-bottom:3px;}.es{font-size:12px;}
+.page{display:none;}.page.active{display:block;}
+.sep{height:1px;background:var(--b1);margin:12px 0;}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;}
+/* ── IMPORT ZONE ── */
+.iz{border:2px dashed var(--b2);border-radius:var(--r2);padding:30px;text-align:center;cursor:pointer;transition:all .2s;}
+.iz:hover{border-color:var(--acc);background:var(--acc3);}
+.iz h3{font-family:'Epilogue',sans-serif;font-size:14px;font-weight:700;margin:7px 0 5px;color:var(--t1);}
+.iz p{font-size:12px;color:var(--t3);line-height:1.6;}
+/* ── OTHER HOURS inline input ── */
+.oth-inp{background:var(--s3);border:1px solid var(--b2);color:var(--t1);border-radius:6px;padding:5px 8px;font-size:12px;font-family:'Consolas',monospace;width:82px;outline:none;text-align:right;transition:border-color .15s;}
+.oth-inp:focus{border-color:var(--acc);}
+/* ── MANUAL ENTRY FORM ── */
+.manual-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;}
+/* ── TOAST ── */
+#toast{position:fixed;bottom:20px;right:20px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:10px 16px;font-size:13px;color:var(--t1);display:none;z-index:999;box-shadow:var(--sh);animation:tin .18s ease;}
+@keyframes tin{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<input type="file" id="fi-xl"   accept=".xlsx,.xls" style="display:none"/>
+<input type="file" id="fi-jore" accept=".json"      style="display:none"/>
+<input type="file" id="fi-jprj" accept=".json"      style="display:none"/>
+
+<div class="shell">
+<!-- ═ SIDEBAR ═ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-m">⏱ TIMEX</div>
+    <div class="logo-s">Gestione Timesheet</div>
+  </div>
+  <nav class="nav">
+    <div class="ni active" data-p="dashboard"><span class="ico">📊</span>Dashboard</div>
+    <div class="ni" data-p="employees"><span class="ico">👤</span>Dipendenti</div>
+    <div class="ni" data-p="projects"><span class="ico">💼</span>Progetti</div>
+    <div class="ni" data-p="assignments"><span class="ico">🔧</span>Assegnazioni</div>
+    <div class="ni" data-p="timesheets"><span class="ico">📄</span>Timesheet PDF</div>
+  </nav>
+  <div class="sbf">
+    <div class="sb-st">Righe: <span id="sb-r">0</span> · Dip.: <span id="sb-e">0</span><br>Progetti: <span id="sb-p">0</span> · Ass.: <span id="sb-a">0</span></div>
+    <div class="sbsep"></div>
+    <div class="sblbl">Ore Lavorate</div>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;">
+      <button class="btn bs bsm bw" onclick="document.getElementById('fi-xl').click()">↑ Importa Excel</button>
+      <button class="btn bg bsm bw" onclick="downloadTemplate()">↓ Template Excel</button>
+      <div style="display:flex;gap:5px;">
+        <button class="btn bg bsm" style="flex:1;justify-content:center;" onclick="document.getElementById('fi-jore').click()">↑ JSON</button>
+        <button class="btn bg bsm" style="flex:1;justify-content:center;" onclick="exportJOre()">↓ JSON</button>
+      </div>
+    </div>
+    <div class="sblbl">Progetti &amp; Assegnazioni</div>
+    <div style="display:flex;gap:5px;margin-bottom:9px;">
+      <button class="btn bg bsm" style="flex:1;justify-content:center;" onclick="document.getElementById('fi-jprj').click()">↑ JSON</button>
+      <button class="btn bg bsm" style="flex:1;justify-content:center;" onclick="exportJProj()">↓ JSON</button>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()"><span id="ti">☀</span><span id="tl">Light Mode</span></button>
+  </div>
+</aside>
+
+<!-- ═ MAIN ═ -->
+<main class="main"><div class="content">
+
+<!-- ── DASHBOARD ── -->
+<div class="page active" id="page-dashboard">
+  <div class="ph"><h2>Dashboard</h2><p>Ore, copertura dipendenti, distribuzione per progetto e per tipologia</p></div>
+  <div class="sg">
+    <div class="sb-box"><div class="sl">Dipendenti</div><div class="sv" id="st-e">0</div><div class="ss">nel dataset</div></div>
+    <div class="sb-box"><div class="sl">Ore Totali</div><div class="sv" id="st-h">0h</div><div class="ss">importate</div></div>
+    <div class="sb-box"><div class="sl">Progetti</div><div class="sv" id="st-p">0</div><div class="ss">attivi</div></div>
+    <div class="sb-box"><div class="sl">Ore Assegnate</div><div class="sv" id="st-a">0h</div><div class="ss">su progetti</div></div>
+  </div>
+  <div class="g2c mb3">
+    <div class="card"><div class="ct"><span class="ci">👤</span>Copertura Dipendenti</div><div id="d-eb"><div class="empty" style="padding:14px"><div class="ei">👤</div><div class="et">Nessun dato</div></div></div></div>
+    <div class="card"><div class="ct"><span class="ci">💼</span>Ore per Progetto</div><div id="d-pb"><div class="empty" style="padding:14px"><div class="ei">💼</div><div class="et">Nessun progetto</div></div></div></div>
+  </div>
+  <div class="card">
+    <div class="ct"><span class="ci">🏷</span>Distribuzione per Tipologia di Progetto</div>
+    <div id="d-tipo"><div class="empty" style="padding:14px"><div class="ei">🏷</div><div class="et">Nessuna tipologia</div><div class="es">Crea progetti con tipologia assegnata</div></div></div>
+  </div>
+</div>
+
+<!-- ── DIPENDENTI ── -->
+<div class="page" id="page-employees">
+  <div class="ph">
+    <div class="ph-row">
+      <div><h2>Dipendenti</h2><p id="emp-sub">Nessun dato importato</p></div>
+      <div class="flex g2">
+        <button class="btn bs" onclick="document.getElementById('fi-xl').click()">↑ Importa .xlsx</button>
+        <button class="btn bg" onclick="downloadTemplate()">↓ Template</button>
+        <button class="btn bg" onclick="exportXL()">↓ Esporta .xlsx</button>
+      </div>
+    </div>
+  </div>
+  <div id="emp-err" class="err" style="display:none;"></div>
+
+  <!-- MANUAL ENTRY -->
+  <div class="card mb3" id="manual-entry-card">
+    <div class="ct"><span class="ci">✏</span>Inserimento Manuale / Completamento Dati</div>
+    <div style="font-size:12px;color:var(--t3);margin-bottom:12px;">
+      Aggiungi righe manualmente oppure compila i campi mancanti prima di esportare.
+    </div>
+    <div class="manual-grid" id="manual-fields">
+      <div><label>Nome Dipendente *</label><input id="m-name" placeholder="es. Mario Rossi"/></div>
+      <div><label>Azienda</label><input id="m-company" placeholder="es. Acme Srl"/></div>
+      <div><label>Sede</label><input id="m-location" placeholder="es. Milano"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:flex-end;margin-bottom:10px;">
+      <div><label>Data</label><input id="m-date" placeholder="gg/mm/aaaa"/></div>
+      <div><label>Ore Lavorate</label><input id="m-hours" type="number" min="0" step="0.25" placeholder="8"/></div>
+      <div><label>Ore su Altro</label><input id="m-other" type="number" min="0" step="0.25" placeholder="0"/></div>
+      <button class="btn bp" onclick="manualAddRow()" style="height:38px;">+ Aggiungi</button>
+    </div>
+    <div id="manual-err" class="err" style="display:none;"></div>
+    <div style="font-size:11px;color:var(--t3)">💡 Puoi anche importare il file Excel e poi modificare i valori di <strong>Ore su Altro</strong> direttamente nella tabella sottostante.</div>
+  </div>
+
+  <div id="emp-zone">
+    <div class="iz" onclick="document.getElementById('fi-xl').click()">
+      <div style="font-size:30px;margin-bottom:6px;">📊</div>
+      <h3>Clicca per importare il file Excel</h3>
+      <p>Colonne: <strong>Nome dipendente · Azienda · Sede · Data · Ore lavorate · Ore su altro</strong><br>
+         Le date seriali Excel vengono convertite automaticamente.</p>
+      <br><button class="btn bg bsm" onclick="event.stopPropagation();downloadTemplate()">↓ Scarica template</button>
+    </div>
+  </div>
+
+  <div id="emp-tables" style="display:none;margin-top:14px;">
+    <!-- Riepilogo per dipendente -->
+    <div class="card mb3">
+      <div class="ct"><span class="ci">⚙</span>Riepilogo per Dipendente</div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:10px;">
+        Le <strong>Ore su Altro</strong> sono la somma dei valori giornalieri — puoi modificarli riga per riga nella tabella dettaglio.<br>
+        Ore disponibili per progetti = Ore Lavorate − Ore su Altro.
+      </div>
+      <div class="tw"><table>
+        <thead><tr>
+          <th>Dipendente</th><th>Azienda</th><th>Sede</th>
+          <th class="r">Ore Lavorate</th>
+          <th class="r">Ore su Altro</th>
+          <th class="r">Disponibili</th>
+          <th class="r">Su Progetti</th>
+          <th class="r">Residuo</th>
+        </tr></thead>
+        <tbody id="emp-sum-tb"></tbody>
+        <tfoot id="emp-sum-foot"></tfoot>
+      </table></div>
+    </div>
+    <!-- Dettaglio giornaliero con Ore su Altro editabili -->
+    <div class="card mt3">
+      <div class="ct"><span class="ci">📅</span>Dettaglio Giornaliero <span style="font-size:11px;font-weight:400;color:var(--t3);margin-left:6px;">· modifica "Ore su altro" per ogni riga</span></div>
+      <div class="tw"><table>
+        <thead><tr>
+          <th>Nome Dipendente</th><th>Azienda</th><th>Sede</th><th>Data</th>
+          <th class="r">Ore Lavorate</th>
+          <th class="c">Ore su Altro</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="emp-tb"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PROGETTI ── -->
+<div class="page" id="page-projects">
+  <div class="ph"><h2>Progetti</h2><p>Crea i progetti. Le ore totali vengono calcolate automaticamente dalla somma delle assegnazioni.</p></div>
+  <div class="card mb4">
+    <div class="ct"><span class="ci">+</span>Nuovo Progetto</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:10px;">
+      <div><label>Nome Progetto *</label><input id="pj-n" placeholder="es. Sviluppo App Mobile"/></div>
+      <div><label>Tipologia *</label><input id="pj-t" placeholder="es. Innovazione tecnologica, R&amp;S…"/></div>
+    </div>
+    <div style="margin-bottom:11px;"><label>Descrizione</label><input id="pj-d" placeholder="Descrizione opzionale"/></div>
+    <div id="pj-err" class="err" style="display:none;"></div>
+    <button class="btn bp" onclick="addProject()">+ Aggiungi Progetto</button>
+  </div>
+  <div id="pj-list"><div class="empty"><div class="ei">💼</div><div class="et">Nessun progetto</div></div></div>
+</div>
+
+<!-- ── ASSEGNAZIONI ── -->
+<div class="page" id="page-assignments">
+  <div class="ph"><h2>Assegnazioni</h2><p>Apri il progetto, seleziona i mesi e assegna ore. La distribuzione giornaliera usa le ore nette (Ore Lavorate − Ore su Altro).</p></div>
+  <div id="ass-pre" class="inf" style="display:none;"></div>
+  <div id="ass-cards"></div>
+</div>
+
+<!-- ── TIMESHEET PDF ── -->
+<div class="page" id="page-timesheets">
+  <div class="ph">
+    <div class="ph-row">
+      <div><h2>Timesheet PDF</h2><p>Matrice mese × giorno · una pagina per dipendente per progetto</p></div>
+      <button class="btn bp" onclick="genAllPDF()">↓ PDF Tutti i Progetti</button>
+    </div>
+  </div>
+  <div id="ts-content"><div class="empty"><div class="ei">📄</div><div class="et">Nessun dato</div><div class="es">Importa dati, crea progetti e assegna ore</div></div></div>
+</div>
+
+</div></main>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  STATE
+//  S.rows: [{id,name,company,location,date,hours,othHours}]
+//  S.projects: [{id,name,type,desc,color,selectedMonths}]
+//  S.assignments: [{id,empName,projectId,hours}]
+// ══════════════════════════════════════════
+const S={rows:[],projects:[],assignments:[]};
+const COLORS=['#F4A228','#22D3A0','#5B9CF6','#A78BFA','#F05454','#EC4899','#FB923C','#34D399','#60A5FA','#C084FC','#FBBF24','#2DD4BF'];
+const M_SH=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+let _uid=0; const uid=()=>`_${++_uid}_${Date.now()}`;
+
+// ── THEME ──
+let isDark=true;
+function toggleTheme(){
+  isDark=!isDark;
+  document.getElementById('root').className=isDark?'dark':'light';
+  document.getElementById('ti').textContent=isDark?'☀':'☾';
+  document.getElementById('tl').textContent=isDark?'Light Mode':'Dark Mode';
+}
+
+// ── NAV ──
+document.querySelectorAll('.ni').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('page-'+el.dataset.p).classList.add('active');
+    const pg=el.dataset.p;
+    if(pg==='dashboard')   renderDash();
+    if(pg==='assignments') renderAssCards();
+    if(pg==='timesheets')  renderTS();
+    if(pg==='projects')    renderProjList();
+    if(pg==='employees')   renderEmps();
+  });
+});
+
+// ── TOAST ──
+function toast(msg,d=2800){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',d);}
+
+// ══════════════════════════════════════════
+//  DATE HELPERS
+// ══════════════════════════════════════════
+function normDate(v){
+  if(v===''||v==null)return '';
+  if(v instanceof Date){if(isNaN(v.getTime()))return '';return v.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});}
+  const n=Number(v);
+  if(!isNaN(n)&&isFinite(n)&&n>=1&&n<=2958465&&String(v).trim()!==''){
+    const d=new Date((Math.floor(n)-25569)*86400000);
+    if(!isNaN(d.getTime()))return d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
+  }
+  return String(v);
+}
+function parseDS(s){
+  if(!s)return null;
+  let m=String(s).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if(m){const y=m[3].length===2?2000+parseInt(m[3]):parseInt(m[3]);return new Date(y,parseInt(m[2])-1,parseInt(m[1]));}
+  m=String(s).match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if(m)return new Date(parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]));
+  const d=new Date(s);return isNaN(d.getTime())?null:d;
+}
+function toMK(s){const d=parseDS(s);if(!d)return null;return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+
+// ── ROUNDING ──
+const rQ=h=>Math.round(h*4)/4;
+
+// ══════════════════════════════════════════
+//  DAILY DISTRIBUTION — anti-overlap, largest-remainder ¼h
+//  dayHnet = row.hours - row.othHours  (net available for projects)
+// ══════════════════════════════════════════
+function distribDay(dayHnet, ratios){
+  const ids=Object.keys(ratios);if(!ids.length)return {};
+  if(dayHnet<=0)return {};
+  const totR=ids.reduce((s,id)=>s+ratios[id],0);
+  const norm={};
+  ids.forEach(id=>{norm[id]=totR>1?ratios[id]/totR:ratios[id];});
+  const target=dayHnet*Math.min(totR,1);
+  const raw={};ids.forEach(id=>{raw[id]=dayHnet*norm[id];});
+  const fl={};ids.forEach(id=>{fl[id]=Math.floor(raw[id]*4)/4;});
+  const budget=Math.max(0,Math.round((target-ids.reduce((s,id)=>s+fl[id],0))/0.25+1e-9));
+  const rem={};ids.forEach(id=>{rem[id]=raw[id]-fl[id];});
+  const sorted=[...ids].sort((a,b)=>rem[b]-rem[a]);
+  const res={...fl};
+  for(let i=0;i<Math.min(budget,sorted.length);i++)res[sorted[i]]=Math.round((res[sorted[i]]+0.25)*4)/4;
+  return res;
+}
+
+// ══════════════════════════════════════════
+//  EMPLOYEE HELPERS
+//  Net hours = hours - othHours (per day, then summed)
+// ══════════════════════════════════════════
+function getEmployees(){
+  const m={};
+  S.rows.forEach(r=>{
+    const k=r.name.trim();if(!k)return;
+    if(!m[k])m[k]={name:k,company:r.company,location:r.location,entries:[],totalHours:0,totalOthHours:0};
+    const h=parseFloat(r.hours)||0;
+    const oh=parseFloat(r.othHours)||0;
+    m[k].entries.push({date:r.date,hours:h,othHours:oh,netHours:Math.max(0,rQ(h-oh))});
+    m[k].totalHours+=h;
+    m[k].totalOthHours+=oh;
+  });
+  Object.values(m).forEach(e=>{e.totalNetHours=rQ(Math.max(0,e.totalHours-e.totalOthHours));});
+  return Object.values(m);
+}
+// Hours in period = sum of net hours (hours-othHours) in selected months
+function empPeriodNetH(empName,selMonths){
+  if(!selMonths||!selMonths.length){
+    return getEmployees().find(e=>e.name===empName)?.totalNetHours||0;
+  }
+  const ms=new Set(selMonths);
+  return rQ(S.rows.filter(r=>r.name===empName).filter(r=>{const k=toMK(r.date);return k&&ms.has(k);})
+    .reduce((s,r)=>s+Math.max(0,rQ((parseFloat(r.hours)||0)-(parseFloat(r.othHours)||0))),0));
+}
+function empAssignedTotal(empName){return S.assignments.filter(a=>a.empName===empName).reduce((s,a)=>s+a.hours,0);}
+function getAvailMths(){const s=new Set();S.rows.forEach(r=>{const k=toMK(r.date);if(k)s.add(k);});return Array.from(s).sort();}
+
+// ══════════════════════════════════════════
+//  BUILD ALLOC  alloc[empName][projId][mk][day] = hours
+//  Each day: distributes over dayHnet = row.hours - row.othHours
+// ══════════════════════════════════════════
+function buildAlloc(){
+  const emps=getEmployees();
+  const alloc={};
+  emps.forEach(emp=>{
+    const ea=S.assignments.filter(a=>a.empName===emp.name);
+    if(!ea.length)return;
+    alloc[emp.name]={};
+    emp.entries.forEach(entry=>{
+      const dayHnet=entry.netHours;if(dayHnet<=0)return;
+      const mk=toMK(entry.date);if(!mk)return;
+      const pd=parseDS(entry.date);if(!pd)return;
+      const day=pd.getDate();
+      const ratios={};
+      ea.forEach(assign=>{
+        const proj=S.projects.find(p=>p.id===assign.projectId);if(!proj)return;
+        if(proj.selectedMonths&&!proj.selectedMonths.includes(mk))return;
+        const perH=empPeriodNetH(emp.name,proj.selectedMonths);
+        if(perH<=0)return;
+        ratios[assign.projectId]=(ratios[assign.projectId]||0)+assign.hours/perH;
+      });
+      if(!Object.keys(ratios).length)return;
+      const da=distribDay(dayHnet,ratios);
+      Object.entries(da).forEach(([pid,h])=>{
+        if(h<=0)return;
+        if(!alloc[emp.name][pid])alloc[emp.name][pid]={};
+        if(!alloc[emp.name][pid][mk])alloc[emp.name][pid][mk]={};
+        alloc[emp.name][pid][mk][day]=rQ((alloc[emp.name][pid][mk][day]||0)+h);
+      });
+    });
+  });
+  return alloc;
+}
+
+// ══════════════════════════════════════════
+//  MATRIX BUILDER
+// ══════════════════════════════════════════
+function buildMatrix(proj,alloc){
+  return S.assignments.filter(a=>a.projectId===proj.id).map(assign=>{
+    const pa=alloc?.[assign.empName]?.[proj.id];
+    if(!pa)return null;
+    const months=Object.entries(pa).map(([mk,days])=>{
+      const[y,m]=mk.split('-');return{year:parseInt(y),month:parseInt(m)-1,days};
+    }).filter(x=>Object.keys(x.days).length>0).sort((a,b)=>a.year-b.year||a.month-b.month);
+    const perH=empPeriodNetH(assign.empName,proj.selectedMonths);
+    // grab location for PDF
+    const emp=getEmployees().find(e=>e.name===assign.empName);
+    return{empName:assign.empName,location:emp?.location||'',company:emp?.company||'',assignedHours:assign.hours,perH,months};
+  }).filter(Boolean);
+}
+
+// ══════════════════════════════════════════
+//  XLSX TEMPLATE (single sheet, 6 cols)
+// ══════════════════════════════════════════
+function downloadTemplate(){
+  const rows=[
+    ['Nome dipendente','Azienda','Sede','Data','Ore lavorate','Ore su altro'],
+    ['Mario Rossi','Acme Srl','Milano','01/01/2024',8,0],
+    ['Mario Rossi','Acme Srl','Milano','02/01/2024',7.5,1],
+    ['Mario Rossi','Acme Srl','Milano','03/01/2024',8,0],
+    ['Luigi Bianchi','Acme Srl','Roma','01/01/2024',8,0],
+    ['Luigi Bianchi','Acme Srl','Roma','02/01/2024',8,2],
+    ['Anna Verdi','Acme Srl','Milano','01/02/2024',8,0],
+    ['Anna Verdi','Acme Srl','Milano','02/02/2024',7,0.5],
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:22},{wch:14},{wch:12},{wch:13},{wch:14},{wch:14}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Timesheet');
+  XLSX.writeFile(wb,'template_timex.xlsx');
+  toast('✓ Template scaricato');
+}
+
+// ══════════════════════════════════════════
+//  IMPORT XLSX
+// ══════════════════════════════════════════
+document.getElementById('fi-xl').addEventListener('change',function(e){
+  const file=e.target.files[0];if(!file)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true,raw:true});
+      const sheet=wb.Sheets[wb.SheetNames[0]];
+      const json=XLSX.utils.sheet_to_json(sheet,{raw:true,defval:''});
+      if(!json.length){SE('emp-err','File vuoto.');return;}
+      const orig=Object.keys(json[0]),lc=orig.map(h=>String(h).toLowerCase().trim());
+      const find=(...kws)=>{for(const kw of kws){const i=lc.findIndex(h=>h.includes(kw));if(i!==-1)return orig[i];}return null;};
+      const nC=find('nome dipendente','nome','dipendente','employee','name');
+      const cC=find('azienda','company','società');
+      const lC=find('sede','location','città');
+      const dC=find('data','date','giorno');
+      const hC=find('ore lavorate','ore lav','ore ','hours');
+      const oC=find('ore su altro','altro','other','extra');
+      if(!nC){SE('emp-err','Colonna "Nome dipendente" non trovata.');return;}
+      S.rows=json.map((r,i)=>{
+        const h=hC?(typeof r[hC]==='number'?r[hC]:parseFloat(String(r[hC]).replace(',','.'))||0):0;
+        const oh=oC?(typeof r[oC]==='number'?r[oC]:parseFloat(String(r[oC]).replace(',','.'))||0):0;
+        return{
+          id:'r'+i,name:String(r[nC]||'').trim(),
+          company:cC?String(r[cC]||''):'',location:lC?String(r[lC]||''):'',
+          date:dC?normDate(r[dC]):'',
+          hours:h, othHours:rQ(Math.min(oh,h)),
+        };
+      }).filter(r=>r.name);
+      HE('emp-err'); renderEmps(); renderDash(); updateSB(); renderAssCards();
+      toast(`✓ ${S.rows.length} righe · ${getEmployees().length} dipendenti`);
+    }catch(er){SE('emp-err','Errore: '+er.message);}
+  };
+  rd.readAsArrayBuffer(file); e.target.value='';
+});
+
+// ══════════════════════════════════════════
+//  EXPORT XLSX (single sheet, 6 cols)
+// ══════════════════════════════════════════
+function exportXL(){
+  if(!S.rows.length){toast('⚠ Nessun dato da esportare');return;}
+  const data=S.rows.map(r=>({
+    'Nome dipendente':r.name,'Azienda':r.company,'Sede':r.location,
+    'Data':r.date,'Ore lavorate':r.hours,'Ore su altro':r.othHours||0,
+  }));
+  const ws=XLSX.utils.json_to_sheet(data);
+  ws['!cols']=[{wch:22},{wch:14},{wch:12},{wch:13},{wch:14},{wch:14}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Timesheet');
+  XLSX.writeFile(wb,'timex_export.xlsx');
+  toast('✓ Esportato (6 colonne, 1 foglio)');
+}
+
+// ══════════════════════════════════════════
+//  JSON I/O
+// ══════════════════════════════════════════
+function exportJOre(){
+  if(!S.rows.length){toast('⚠ Nessun dato');return;}
+  dlBlob(JSON.stringify({version:3,rows:S.rows},null,2),'timex_ore.json','application/json');
+  toast('✓ JSON ore esportato');
+}
+function exportJProj(){
+  if(!S.projects.length){toast('⚠ Nessun progetto');return;}
+  dlBlob(JSON.stringify({version:3,projects:S.projects,assignments:S.assignments},null,2),'timex_progetti.json','application/json');
+  toast('✓ JSON progetti esportato');
+}
+function dlBlob(c,n,m){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:m}));a.download=n;a.click();URL.revokeObjectURL(a.href);}
+document.getElementById('fi-jore').addEventListener('change',function(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();r.onload=ev=>{
+    try{const d=JSON.parse(ev.target.result);
+      if(!d.rows){toast('⚠ JSON non valido');return;}
+      S.rows=d.rows.map(r=>({...r,othHours:rQ(Math.min(r.othHours||0,r.hours||0))}));
+      renderEmps(); renderDash(); updateSB(); renderAssCards();
+      toast(`✓ ${S.rows.length} righe caricate`);
+    }catch(er){toast('⚠ Errore JSON: '+er.message);}
+  };r.readAsText(file);e.target.value='';
+});
+document.getElementById('fi-jprj').addEventListener('change',function(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();r.onload=ev=>{
+    try{const d=JSON.parse(ev.target.result);
+      if(!d.projects){toast('⚠ JSON non valido');return;}
+      S.projects=d.projects;S.assignments=d.assignments||[];
+      renderProjList(); renderAssCards(); renderDash(); updateSB(); renderTS();
+      toast(`✓ ${S.projects.length} progetti · ${S.assignments.length} assegnazioni`);
+    }catch(er){toast('⚠ Errore JSON: '+er.message);}
+  };r.readAsText(file);e.target.value='';
+});
+
+// ══════════════════════════════════════════
+//  MANUAL ROW ENTRY
+// ══════════════════════════════════════════
+function manualAddRow(){
+  const name=document.getElementById('m-name').value.trim();
+  const company=document.getElementById('m-company').value.trim();
+  const location=document.getElementById('m-location').value.trim();
+  const date=document.getElementById('m-date').value.trim();
+  const hours=parseFloat(document.getElementById('m-hours').value)||0;
+  const othHours=rQ(Math.max(0,parseFloat(document.getElementById('m-other').value)||0));
+  if(!name){SE('manual-err','Il nome del dipendente è obbligatorio.');return;}
+  if(othHours>hours){SE('manual-err',`Ore su altro (${othHours}) non può superare ore lavorate (${hours}).`);return;}
+  HE('manual-err');
+  S.rows.push({id:uid(),name,company,location,date:date||'',hours,othHours});
+  renderEmps(); renderDash(); updateSB(); renderAssCards();
+  // Clear fields keeping name/company/location for quick multi-day entry
+  document.getElementById('m-date').value='';
+  document.getElementById('m-hours').value='';
+  document.getElementById('m-other').value='';
+  toast(`✓ Riga aggiunta per ${name}`);
+}
+
+// ── Update othHours for a specific row ──
+function setRowOth(rowId,val){
+  const row=S.rows.find(r=>r.id===rowId);if(!row)return;
+  const oh=rQ(Math.max(0,parseFloat(val)||0));
+  if(oh>row.hours){toast(`⚠ Ore su altro (${oh}h) non può superare ore lavorate (${row.hours}h) per quel giorno`);renderEmps();return;}
+  // Check global: would this push total assigned over total net?
+  const oldOh=row.othHours||0;
+  const delta=oh-oldOh; // positive = increasing "altro"
+  const emp=getEmployees().find(e=>e.name===row.name);
+  if(emp){
+    const newTotalNet=rQ(emp.totalNetHours-delta);
+    const assigned=empAssignedTotal(row.name);
+    if(assigned>newTotalNet+0.001){
+      toast(`⚠ Con ${oh}h su altro in questo giorno, le ore assegnate su progetti (${assigned.toFixed(2)}h) supererebbero le ore nette disponibili (${newTotalNet.toFixed(2)}h).`);
+      renderEmps();return;
+    }
+  }
+  row.othHours=oh;
+  renderEmps(); renderDash(); renderAssCards();
+}
+// ── Delete a row ──
+function deleteRow(rowId){
+  S.rows=S.rows.filter(r=>r.id!==rowId);
+  renderEmps(); renderDash(); updateSB(); renderAssCards(); toast('Riga eliminata');
+}
+
+// ══════════════════════════════════════════
+//  EMPLOYEES RENDER
+// ══════════════════════════════════════════
+function renderEmps(){
+  const zone=document.getElementById('emp-zone'),tables=document.getElementById('emp-tables'),sub=document.getElementById('emp-sub');
+  if(!S.rows.length){zone.style.display='block';tables.style.display='none';sub.textContent='Nessun dato importato';return;}
+  zone.style.display='none';tables.style.display='block';
+  const emps=getEmployees();
+  sub.textContent=`${S.rows.length} righe · ${emps.length} dipendenti`;
+  const projUsed={};S.assignments.forEach(a=>{projUsed[a.empName]=(projUsed[a.empName]||0)+a.hours;});
+  let tOre=0,tOth=0,tPrj=0;
+  document.getElementById('emp-sum-tb').innerHTML=emps.map(e=>{
+    const prj=projUsed[e.name]||0,avail=e.totalNetHours,res=rQ(avail-prj);
+    tOre+=e.totalHours;tOth+=e.totalOthHours;tPrj+=prj;
+    return `<tr>
+      <td><strong>${esc(e.name)}</strong></td>
+      <td style="color:var(--t3)">${esc(e.company)||'—'}</td>
+      <td style="color:var(--t3)">${esc(e.location)||'—'}</td>
+      <td class="mono r">${e.totalHours.toFixed(2)}h</td>
+      <td class="mono r" style="color:var(--pu)">${e.totalOthHours.toFixed(2)}h</td>
+      <td class="mono r" style="color:var(--gn)">${avail.toFixed(2)}h</td>
+      <td class="mono r" style="color:var(--acc)">${prj.toFixed(2)}h</td>
+      <td class="mono r" style="color:${res<-0.001?'var(--rd)':res<0.01?'var(--t3)':'var(--gn)'}">${res.toFixed(2)}h</td>
+    </tr>`;
+  }).join('');
+  const totAvail=rQ(tOre-tOth);
+  document.getElementById('emp-sum-foot').innerHTML=`<tr>
+    <td colspan="3">TOTALE</td>
+    <td class="mono r">${tOre.toFixed(2)}h</td>
+    <td class="mono r" style="color:var(--pu)">${tOth.toFixed(2)}h</td>
+    <td class="mono r" style="color:var(--gn)">${totAvail.toFixed(2)}h</td>
+    <td class="mono r" style="color:var(--acc)">${tPrj.toFixed(2)}h</td>
+    <td class="mono r">${rQ(totAvail-tPrj).toFixed(2)}h</td>
+  </tr>`;
+  // Detail rows
+  document.getElementById('emp-tb').innerHTML=S.rows.map(r=>`<tr>
+    <td><strong>${esc(r.name)}</strong></td>
+    <td style="color:var(--t3)">${esc(r.company)||'—'}</td>
+    <td style="color:var(--t3)">${esc(r.location)||'—'}</td>
+    <td class="mono">${esc(r.date)||'—'}</td>
+    <td class="mono r">${(parseFloat(r.hours)||0).toFixed(2)}h</td>
+    <td class="c"><input class="oth-inp" type="number" min="0" step="0.25"
+      value="${r.othHours||''}" placeholder="0"
+      onchange="setRowOth('${r.id}',this.value)"
+      title="Ore su altro per questo giorno"/></td>
+    <td><button class="btn bd bxs" onclick="deleteRow('${r.id}')" title="Elimina riga">×</button></td>
+  </tr>`).join('');
+}
+
+// ══════════════════════════════════════════
+//  PROJECTS
+// ══════════════════════════════════════════
+function addProject(){
+  const name=document.getElementById('pj-n').value.trim();
+  const type=document.getElementById('pj-t').value.trim();
+  const desc=document.getElementById('pj-d').value.trim();
+  if(!name){SE('pj-err','Inserisci il nome.');return;}
+  if(!type){SE('pj-err','Inserisci la tipologia.');return;}
+  HE('pj-err');
+  S.projects.push({id:uid(),name,type,desc,color:COLORS[S.projects.length%COLORS.length],selectedMonths:null});
+  document.getElementById('pj-n').value='';document.getElementById('pj-t').value='';document.getElementById('pj-d').value='';
+  renderProjList();renderDash();updateSB();toast(`✓ "${name}" aggiunto`);
+}
+function removeProject(id){
+  if(!confirm('Eliminare questo progetto e tutte le sue assegnazioni?'))return;
+  S.projects=S.projects.filter(p=>p.id!==id);
+  S.assignments=S.assignments.filter(a=>a.projectId!==id);
+  renderProjList();renderAssCards();renderDash();updateSB();renderTS();toast('Progetto eliminato');
+}
+function renderProjList(){
+  const w=document.getElementById('pj-list');
+  if(!S.projects.length){w.innerHTML='<div class="empty"><div class="ei">💼</div><div class="et">Nessun progetto</div></div>';return;}
+  const ph={};S.assignments.forEach(a=>{ph[a.projectId]=(ph[a.projectId]||0)+a.hours;});
+  w.innerHTML=`<div class="tw"><table>
+    <thead><tr><th></th><th>Nome</th><th>Tipologia</th><th>Descrizione</th><th class="r">Ore Tot.</th><th class="r">Dip.</th><th></th></tr></thead>
+    <tbody>${S.projects.map(p=>{
+      const h=ph[p.id]||0,nd=S.assignments.filter(a=>a.projectId===p.id).length;
+      return `<tr><td><span class="dot" style="background:${p.color}"></span></td>
+        <td><strong>${esc(p.name)}</strong></td>
+        <td><span class="badge" style="background:${p.color}18;color:${p.color}">${esc(p.type)}</span></td>
+        <td style="color:var(--t3);font-size:12px">${esc(p.desc)||'—'}</td>
+        <td class="mono r" style="color:var(--acc)">${h.toFixed(2)}h</td>
+        <td class="mono r" style="color:var(--t3)">${nd}</td>
+        <td><button class="btn bd bxs" onclick="removeProject('${p.id}')">Elimina</button></td></tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+// ══════════════════════════════════════════
+//  ASSIGNMENTS
+// ══════════════════════════════════════════
+function renderAssCards(){
+  const pre=document.getElementById('ass-pre'),cards=document.getElementById('ass-cards');
+  const emps=getEmployees();
+  if(!S.projects.length||!emps.length){
+    pre.style.display='block';
+    pre.textContent=!S.projects.length?'ℹ Crea prima i progetti nella sezione Progetti.':'ℹ Importa prima i dati dipendenti.';
+    cards.innerHTML='';return;
+  }
+  pre.style.display='none';
+  const avMths=getAvailMths();
+  cards.innerHTML=S.projects.map(p=>{
+    const sel=p.selectedMonths;
+    const chips=avMths.map(mk=>{
+      const[y,m]=mk.split('-');
+      const on=!sel||sel.includes(mk);
+      return `<span class="chip${on?' on':''}" onclick="toggleMth('${p.id}','${mk}')">${M_SH[parseInt(m)-1]} ${y}</span>`;
+    }).join('');
+    const assigns=S.assignments.filter(a=>a.projectId===p.id);
+    const empRows=assigns.map(a=>{
+      const emp=emps.find(e=>e.name===a.empName);
+      const perH=empPeriodNetH(a.empName,sel);
+      return `<div class="emp-r">
+        <div><div class="emp-rn">${esc(a.empName)}</div><div class="emp-rh">${perH.toFixed(2)}h nette nel periodo</div></div>
+        <div class="mono" style="font-size:12px;color:var(--acc)">${a.hours.toFixed(2)}h</div>
+        <div class="mono" style="font-size:11px;color:var(--t3)">${emp&&perH>0?((a.hours/perH)*100).toFixed(0)+'%':''}</div>
+        <button class="btn bd bxs" onclick="removeAss('${a.id}')">×</button>
+      </div>`;
+    }).join('');
+    const addForm=`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:flex-end;margin-top:10px;">
+      <div><label>Dipendente</label>
+        <select id="ae-${p.id}" onchange="updHint('${p.id}')">
+          <option value="">— Seleziona dipendente —</option>
+          ${emps.map(e=>{
+            const perH=rQ(empPeriodNetH(e.name,sel));
+            const alrAll=empAssignedTotal(e.name);
+            const alrThis=S.assignments.find(a=>a.empName===e.name&&a.projectId===p.id)?.hours||0;
+            const globalAvail=rQ(Math.max(0,e.totalNetHours-alrAll+alrThis));
+            const periodAvail=rQ(Math.max(0,perH-alrThis));
+            const avail=rQ(Math.min(periodAvail,globalAvail));
+            return `<option value="${esc(e.name)}">${esc(e.name)} (disp: ${avail.toFixed(2)}h nette)</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div><label>Ore <span id="ah-${p.id}" style="font-size:9px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0"></span></label>
+        <input id="ai-${p.id}" type="number" min="0.25" step="0.25" placeholder="40" style="width:90px"/></div>
+      <button class="btn bp" onclick="addAss('${p.id}')" style="height:36px;">Assegna</button>
+    </div>
+    <div id="aerr-${p.id}" class="err" style="display:none;margin-top:7px;"></div>`;
+    return `<div class="pac" id="pac-${p.id}">
+      <div class="pac-hdr" onclick="togglePac('${p.id}')">
+        <div class="pac-title">
+          <span class="dot" style="background:${p.color};width:10px;height:10px"></span>
+          <span class="pac-name" style="color:${p.color}">${esc(p.name)}</span>
+          <span class="pac-type">${esc(p.type)}</span>
+          ${assigns.length?`<span style="font-size:11px;color:var(--t3)">${assigns.length} dip.</span>`:''}
+        </div>
+        <span id="pa-${p.id}" style="color:var(--t3);font-size:12px;">▲</span>
+      </div>
+      <div class="pac-body" id="pb-${p.id}">
+        ${avMths.length?`<div><div class="pac-sub">Mesi del progetto</div><div class="chips">${chips}</div></div><div class="sep"></div>`:'<div style="font-size:12px;color:var(--t3);margin-bottom:12px">ℹ Importa dati per selezionare i mesi</div>'}
+        ${assigns.length?`<div><div class="pac-sub">Dipendenti assegnati</div>${empRows}</div><div class="sep"></div>`:''}
+        ${addForm}
+      </div>
+    </div>`;
+  }).join('');
+  S.projects.forEach(p=>updHint(p.id));
+}
+function togglePac(id){
+  document.getElementById('pb-'+id).classList.toggle('closed');
+  document.getElementById('pa-'+id).textContent=document.getElementById('pb-'+id).classList.contains('closed')?'▼':'▲';
+}
+function toggleMth(projId,mk){
+  const p=S.projects.find(x=>x.id===projId);if(!p)return;
+  const av=getAvailMths();
+  let sel=p.selectedMonths?[...p.selectedMonths]:[...av];
+  if(sel.includes(mk))sel=sel.filter(m=>m!==mk);else sel.push(mk);
+  p.selectedMonths=(sel.length===av.length&&av.every(m=>sel.includes(m)))?null:sel;
+  renderAssCards();
+}
+function updHint(projId){
+  const empName=document.getElementById('ae-'+projId)?.value;
+  const hint=document.getElementById('ah-'+projId);if(!hint)return;
+  if(!empName){hint.textContent='';return;}
+  const p=S.projects.find(x=>x.id===projId);
+  const emp=getEmployees().find(e=>e.name===empName);if(!emp){hint.textContent='';return;}
+  const perH=rQ(empPeriodNetH(empName,p?.selectedMonths));
+  const alrAll=empAssignedTotal(empName);
+  const alrThis=S.assignments.find(a=>a.empName===empName&&a.projectId===projId)?.hours||0;
+  const gAvail=rQ(Math.max(0,emp.totalNetHours-alrAll+alrThis));
+  const pAvail=rQ(Math.max(0,perH-alrThis));
+  hint.textContent=`max ${rQ(Math.min(pAvail,gAvail)).toFixed(2).replace('.',',')}h`;
+}
+function addAss(projId){
+  const empName=document.getElementById('ae-'+projId)?.value;
+  const rawH=parseFloat(document.getElementById('ai-'+projId)?.value);
+  const errEl=document.getElementById('aerr-'+projId);
+  if(!empName||isNaN(rawH)||rawH<=0){SEL(errEl,'Seleziona un dipendente e inserisci le ore.');return;}
+  const hours=rQ(rawH);
+  const p=S.projects.find(x=>x.id===projId);
+  const emp=getEmployees().find(e=>e.name===empName);
+  if(!emp||!p){SEL(errEl,'Dati non trovati.');return;}
+  const perH=empPeriodNetH(empName,p.selectedMonths);
+  const alrThis=S.assignments.find(a=>a.empName===empName&&a.projectId===projId)?.hours||0;
+  const alrAll=empAssignedTotal(empName);
+  const newOnThis=rQ(alrThis+hours);
+  const newAllProj=rQ(alrAll+hours);
+  if(newOnThis>rQ(perH)+0.001){SEL(errEl,`Ore sul progetto (${newOnThis.toFixed(2)}h) superano le ore nette nel periodo (${rQ(perH).toFixed(2)}h) per ${emp.name}.`);return;}
+  if(newAllProj>rQ(emp.totalNetHours)+0.001){SEL(errEl,`Totale ore su progetti (${newAllProj.toFixed(2)}h) supererebbe le ore nette totali (${emp.totalNetHours.toFixed(2)}h) di ${emp.name}.`);return;}
+  HEL(errEl);
+  const ex=S.assignments.find(a=>a.empName===empName&&a.projectId===projId);
+  if(ex)ex.hours=rQ(ex.hours+hours);else S.assignments.push({id:uid(),empName,projectId:projId,hours});
+  if(document.getElementById('ai-'+projId))document.getElementById('ai-'+projId).value='';
+  renderAssCards();renderDash();renderProjList();updateSB();
+  toast(`✓ ${hours.toFixed(2)}h → "${p.name}" per ${emp.name}`);
+}
+function removeAss(id){
+  S.assignments=S.assignments.filter(a=>a.id!==id);
+  renderAssCards();renderDash();renderProjList();updateSB();toast('Assegnazione rimossa');
+}
+
+// ══════════════════════════════════════════
+//  TIMESHEETS PAGE
+// ══════════════════════════════════════════
+function renderTS(){
+  const el=document.getElementById('ts-content');
+  const actP=S.projects.filter(p=>S.assignments.some(a=>a.projectId===p.id));
+  if(!actP.length){el.innerHTML='<div class="empty"><div class="ei">📄</div><div class="et">Nessun dato</div><div class="es">Importa dati, crea progetti e assegna ore</div></div>';return;}
+  const alloc=buildAlloc();
+  el.innerHTML=actP.map(proj=>{
+    const matrix=buildMatrix(proj,alloc);if(!matrix.length)return '';
+    const totH=S.assignments.filter(a=>a.projectId===proj.id).reduce((s,a)=>s+a.hours,0);
+    const empSecs=matrix.map(emp=>{
+      if(!emp.months.length)return `<div style="padding:7px 0;font-size:12px;color:var(--t3)">👤 ${esc(emp.empName)} — nessun giorno nel periodo.</div>`;
+      const hdC=Array.from({length:31},(_,i)=>`<th class="c">${i+1}</th>`).join('');
+      const bRows=emp.months.map(({year,month,days})=>{
+        const mTot=Object.values(days).reduce((s,h)=>s+h,0);
+        const cells=Array.from({length:31},(_,i)=>{const h=days[i+1]||0;return h>0?`<td class="hv">${h%1===0?h:h.toFixed(2)}</td>`:`<td class="z">·</td>`;}).join('');
+        return `<tr><td class="mn">${M_SH[month]} ${year}</td>${cells}<td class="tot">${mTot.toFixed(2)}</td></tr>`;
+      }).join('');
+      const fC=Array.from({length:31},(_,i)=>{const t=emp.months.reduce((s,{days})=>s+(days[i+1]||0),0);return t>0?`<td style="font-weight:600;color:var(--t2)">${t%1===0?t:t.toFixed(2)}</td>`:`<td class="z">·</td>`;}).join('');
+      const gTot=emp.months.reduce((s,{days})=>s+Object.values(days).reduce((ss,h)=>ss+h,0),0);
+      const safeEmp=esc(emp.empName).replace(/'/g,"\\'");
+      return `<div style="margin-bottom:13px;">
+        <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:7px;display:flex;align-items:center;gap:8px;">
+          👤 ${esc(emp.empName)}
+          <span class="mono" style="font-size:10px;color:var(--t3)">${emp.assignedHours.toFixed(2)}h · ${emp.perH.toFixed(2)}h nette nel periodo</span>
+          <button class="btn bbl bxs" onclick="genEmpPDF('${proj.id}','${safeEmp}')">↓ PDF</button>
+        </div>
+        <div class="mxw"><table>
+          <thead><tr><th style="text-align:left;min-width:48px">Mese</th>${hdC}<th class="r" style="min-width:42px;border-left:1px solid var(--b2)">Tot.</th></tr></thead>
+          <tbody>${bRows}</tbody>
+          <tfoot><tr><td class="mn" style="font-size:9px">TOT.</td>${fC}<td class="tot">${gTot.toFixed(2)}</td></tr></tfoot>
+        </table></div>
+      </div>`;
+    }).join('');
+    return `<div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:13px;overflow:hidden;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+            <span class="dot" style="background:${proj.color};width:10px;height:10px"></span>
+            <span style="font-family:'Epilogue',sans-serif;font-weight:700;font-size:15px;color:${proj.color}">${esc(proj.name)}</span>
+            <span class="badge" style="background:${proj.color}18;color:${proj.color}">${esc(proj.type)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--t3)">${matrix.length} dip. · ${totH.toFixed(2)}h${proj.selectedMonths?` · ${proj.selectedMonths.length} mes${proj.selectedMonths.length===1?'e':'i'}`:' · tutti i mesi'}</div>
+        </div>
+        <button class="btn bgr bsm" onclick="genProjPDF('${proj.id}')">↓ PDF Progetto</button>
+      </div>
+      <div style="padding:14px 16px;">${empSecs}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  PDF — one page per employee
+// ══════════════════════════════════════════
+function pdfCSS(color){
+  return `<style>
+@import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@700;900&family=Figtree:wght@400;500;600&display=swap');
+@page{size:A4 landscape;margin:7mm 9mm;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Figtree',sans-serif;font-size:9px;color:#18192A;background:#fff;}
+.emp-page{page-break-before:always;}
+.emp-page:first-of-type{page-break-before:auto;}
+.proj-stamp{border-bottom:3px solid ${color};padding-bottom:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-end;}
+.ps-l .kicker{font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#bbb;margin-bottom:3px;}
+.ps-l h1{font-family:'Epilogue',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.5px;color:#18192A;}
+.ps-l .psub{font-size:8px;color:#aaa;margin-top:2px;}
+.ps-r{text-align:right;font-size:8px;color:#bbb;line-height:1.8;}
+.meta{display:flex;gap:6px;margin:8px 0 10px;flex-wrap:wrap;}
+.mi{background:#F6F7FC;padding:5px 9px;border-radius:4px;flex:1;min-width:90px;}
+.mi-l{font-size:7px;text-transform:uppercase;letter-spacing:.7px;color:#aaa;margin-bottom:2px;}
+.mi-v{font-weight:700;font-size:11px;color:#18192A;}
+.emp-hdr{display:flex;justify-content:space-between;align-items:center;background:#F6F7FC;padding:6px 10px;border-radius:4px 4px 0 0;border-bottom:2px solid ${color};}
+.emp-name{font-family:'Epilogue',sans-serif;font-size:12px;font-weight:700;color:#18192A;}
+.emp-meta{font-size:8px;color:#777;}
+table{width:100%;border-collapse:collapse;}
+th{background:#18192A;color:#fff;padding:3px 2px;font-size:7px;text-align:center;white-space:nowrap;}
+th.mn-h{text-align:left;padding:3px 5px;min-width:16px;}th.th-{border-left:1px solid #444;padding:3px 5px;}
+td{padding:2.5px 2px;border-bottom:1px solid #EDEFF6;text-align:center;font-family:'Consolas',monospace;font-size:7px;}
+td.mn{text-align:left;font-family:'Figtree',sans-serif;font-size:8px;font-weight:600;color:#555;padding:2.5px 5px;background:#FAFBFD;white-space:nowrap;}
+td.hv{color:#18192A;font-weight:500;}td.z{color:#ddd;}
+td.tot{font-weight:700;color:${color};border-left:1px solid #e8eaf0;background:#FAFBFD;}
+tr:nth-child(even) td{background:#FAFBFE;}
+tfoot td{background:#EEF0F8;border-top:1.5px solid #18192A;}tfoot td.mn{background:#E8EAF2;}
+.sign{display:flex;gap:36px;margin-top:14px;padding-top:8px;border-top:1px solid #eee;}
+.sign-item{font-size:8px;color:#aaa;}.sign-line{border-bottom:1px solid #ccc;width:150px;margin-top:12px;}
+</style>`;
+}
+
+function buildEmpPage(proj,emp){
+  const hdC=Array.from({length:31},(_,i)=>`<th>${i+1}</th>`).join('');
+  const bRows=emp.months.map(({year,month,days})=>{
+    const mTot=Object.values(days).reduce((s,h)=>s+h,0);
+    const cells=Array.from({length:31},(_,i)=>{const h=days[i+1]||0;return h>0?`<td class="hv">${h%1===0?h:h.toFixed(2)}</td>`:`<td class="z">·</td>`;}).join('');
+    return `<tr><td class="mn">${M_SH[month]}<br><span style="font-size:6px;color:#bbb">${year}</span></td>${cells}<td class="tot">${mTot.toFixed(2)}</td></tr>`;
+  }).join('');
+  const fC=Array.from({length:31},(_,i)=>{const t=emp.months.reduce((s,{days})=>s+(days[i+1]||0),0);return t>0?`<td style="font-weight:700;color:#444">${t%1===0?t:t.toFixed(2)}</td>`:`<td style="color:#ddd">·</td>`;}).join('');
+  const gTot=emp.months.reduce((s,{days})=>s+Object.values(days).reduce((ss,h)=>ss+h,0),0);
+  // Sede: only show if non-empty
+  const sedeField=emp.location?`<div class="mi" style="border-left:2px solid ${proj.color}"><div class="mi-l">Sede</div><div class="mi-v">${esc(emp.location)}</div></div>`:'';
+  return `<div class="emp-page">
+    <div class="proj-stamp">
+      <div class="ps-l">
+        <div class="kicker">Timesheet di Progetto</div>
+        <h1>${esc(proj.name)}</h1>
+        <div class="psub">Tipologia: ${esc(proj.type)}${proj.desc?' · '+esc(proj.desc):''}</div>
+      </div>
+      <div class="ps-r">Generato il ${new Date().toLocaleDateString('it-IT')}<br>Documento riservato</div>
+    </div>
+    <div class="meta">
+      <div class="mi" style="border-left:2px solid ${proj.color}"><div class="mi-l">Progetto</div><div class="mi-v">${esc(proj.name)}</div></div>
+      <div class="mi" style="border-left:2px solid ${proj.color}"><div class="mi-l">Tipologia</div><div class="mi-v">${esc(proj.type)}</div></div>
+      <div class="mi" style="border-left:2px solid ${proj.color}"><div class="mi-l">Dipendente</div><div class="mi-v">${esc(emp.empName)}</div></div>
+      ${emp.company?`<div class="mi" style="border-left:2px solid ${proj.color}"><div class="mi-l">Azienda</div><div class="mi-v">${esc(emp.company)}</div></div>`:''}
+      ${sedeField}
+      <div class="mi" style="border-left:2px solid ${proj.color}"><div class="mi-l">Ore Lavorate Progetto</div><div class="mi-v">${emp.assignedHours.toFixed(2)}h</div></div>
+    </div>
+    <div class="emp-hdr">
+      <div class="emp-name">👤 ${esc(emp.empName)}${emp.location?' · '+esc(emp.location):''}</div>
+      <div class="emp-meta">Ore lavorate progetto: <strong>${emp.assignedHours.toFixed(2)}h</strong></div>
+    </div>
+    <table>
+      <thead><tr><th class="mn-h">Mese</th>${hdC}<th class="th-">Tot.</th></tr></thead>
+      <tbody>${bRows}</tbody>
+      <tfoot><tr><td class="mn">TOT</td>${fC}<td class="tot"><strong>${gTot.toFixed(2)}</strong></td></tr></tfoot>
+    </table>
+    <div class="sign">
+      <div class="sign-item">Firma Responsabile Progetto<div class="sign-line"></div></div>
+      <div class="sign-item">Data: ___/___/______<div class="sign-line" style="width:90px"></div></div>
+    </div>
+  </div>`;
+}
+
+function buildPDFDoc(pages,firstProj){
+  return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Timesheet PDF</title>${pdfCSS(firstProj?.color||'#F4A228')}</head><body>${pages.join('')}<script>window.onload=()=>{setTimeout(()=>window.print(),400);}<\/script></body></html>`;
+}
+function openPDF(html){
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
+  else toast('⚠ Popup bloccato — consenti i popup per questo sito.');
+}
+function genEmpPDF(projId,empName){
+  const proj=S.projects.find(p=>p.id===projId);if(!proj)return;
+  const alloc=buildAlloc();
+  const matrix=buildMatrix(proj,alloc).filter(e=>e.empName===empName&&e.months.length>0);
+  if(!matrix.length){alert('Nessun dato per questo dipendente su questo progetto.');return;}
+  openPDF(buildPDFDoc([buildEmpPage(proj,matrix[0])],proj));
+}
+function genProjPDF(projId){
+  const proj=S.projects.find(p=>p.id===projId);if(!proj)return;
+  const alloc=buildAlloc();
+  const matrix=buildMatrix(proj,alloc).filter(e=>e.months.length>0);
+  if(!matrix.length){alert('Nessuna assegnazione con dati per questo progetto.');return;}
+  openPDF(buildPDFDoc(matrix.map(emp=>buildEmpPage(proj,emp)),proj));
+}
+function genAllPDF(){
+  const active=S.projects.filter(p=>S.assignments.some(a=>a.projectId===p.id));
+  if(!active.length){toast('⚠ Nessun progetto con assegnazioni');return;}
+  const alloc=buildAlloc();
+  const pages=[];
+  active.forEach(proj=>buildMatrix(proj,alloc).filter(e=>e.months.length>0).forEach(emp=>pages.push(buildEmpPage(proj,emp))));
+  if(!pages.length){toast('⚠ Nessuna pagina generabile');return;}
+  openPDF(buildPDFDoc(pages,active[0]));
+  toast(`↓ PDF: ${pages.length} pagina/e su ${active.length} progett${active.length===1?'o':'i'}`);
+}
+
+// ══════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════
+function renderDash(){
+  const emps=getEmployees();
+  const totH=emps.reduce((s,e)=>s+e.totalHours,0);
+  const totAssH=S.assignments.reduce((s,a)=>s+a.hours,0);
+  document.getElementById('st-e').textContent=emps.length;
+  document.getElementById('st-h').textContent=totH.toFixed(1)+'h';
+  document.getElementById('st-p').textContent=S.projects.length;
+  document.getElementById('st-a').textContent=totAssH.toFixed(1)+'h';
+  const eu={};S.assignments.forEach(a=>{eu[a.empName]=(eu[a.empName]||0)+a.hours;});
+  const eb=document.getElementById('d-eb');
+  if(!emps.length){eb.innerHTML='<div class="empty" style="padding:14px"><div class="ei">👤</div><div class="et">Nessun dato</div></div>';}
+  else eb.innerHTML=emps.map(e=>{
+    const u=eu[e.name]||0,pct=e.totalHours>0?(u/e.totalHours)*100:0;
+    return `<div style="margin-bottom:12px">
+      <div class="flex jb ic" style="margin-bottom:3px">
+        <span style="font-size:12px;font-weight:600">${esc(e.name)}</span>
+        <span class="mono" style="font-size:10px;color:var(--t3)">${u.toFixed(1)}h / ${e.totalNetHours.toFixed(1)}h nette</span>
+      </div>
+      <div class="prog"><div class="pf" style="width:${e.totalNetHours>0?Math.min(100,(u/e.totalNetHours)*100).toFixed(1):0}%;background:${pct>=98?'var(--gn)':pct>=50?'var(--acc)':'var(--bl)'}"></div></div>
+    </div>`;
+  }).join('');
+  const pu={};S.assignments.forEach(a=>{pu[a.projectId]=(pu[a.projectId]||0)+a.hours;});
+  const pb=document.getElementById('d-pb');
+  if(!S.projects.length){pb.innerHTML='<div class="empty" style="padding:14px"><div class="ei">💼</div><div class="et">Nessun progetto</div></div>';}
+  else{
+    const mx=Math.max(...Object.values(pu),1);
+    pb.innerHTML=S.projects.map(p=>{const u=pu[p.id]||0;
+      return `<div style="margin-bottom:12px">
+        <div class="flex jb ic" style="margin-bottom:3px">
+          <div class="flex ic g2"><span class="dot" style="background:${p.color}"></span><span style="font-size:12px;font-weight:600">${esc(p.name)}</span></div>
+          <span class="mono" style="font-size:10px;color:var(--t3)">${u.toFixed(1)}h</span>
+        </div>
+        <div class="prog"><div class="pf" style="width:${Math.min(100,(u/mx)*100).toFixed(1)}%;background:${p.color}"></div></div>
+      </div>`;
+    }).join('');
+  }
+  // Tipologie
+  const tipoEl=document.getElementById('d-tipo');
+  if(!S.projects.length){tipoEl.innerHTML='<div class="empty" style="padding:14px"><div class="ei">🏷</div><div class="et">Nessuna tipologia</div><div class="es">Crea progetti con tipologia</div></div>';return;}
+  const tipoH={},tipoInfo={};
+  S.projects.forEach(p=>{
+    const h=pu[p.id]||0;
+    tipoH[p.type]=(tipoH[p.type]||0)+h;
+    if(!tipoInfo[p.type])tipoInfo[p.type]={color:p.color,projs:[]};
+    tipoInfo[p.type].projs.push(p.name);
+  });
+  const totT=Object.values(tipoH).reduce((s,h)=>s+h,0)||1;
+  const sorted=Object.entries(tipoH).sort((a,b)=>b[1]-a[1]);
+  tipoEl.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px;">
+    ${sorted.map(([tipo,h])=>{const info=tipoInfo[tipo];return `<div class="sb-box" style="border-left:3px solid ${info.color}">
+      <div class="sl">${esc(tipo)}</div>
+      <div class="sv" style="font-size:19px">${h.toFixed(1)}h</div>
+      <div class="ss">${((h/totT)*100).toFixed(1)}% · ${info.projs.length} progett${info.projs.length===1?'o':'i'}</div>
+    </div>`;}).join('')}
+  </div>
+  <div>${sorted.map(([tipo,h])=>{const info=tipoInfo[tipo];const pct=((h/totT)*100);return `<div class="tipo-row">
+    <div class="tipo-label" title="${esc(tipo)}">${esc(tipo)}</div>
+    <div class="tipo-bar-wrap"><div class="tipo-bar" style="width:${pct.toFixed(1)}%;background:${info.color}"></div></div>
+    <div class="tipo-val">${h.toFixed(1)}h</div>
+    <div style="font-size:10px;color:var(--t3);width:34px;text-align:right">${pct.toFixed(0)}%</div>
+  </div>`;}).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════
+function updateSB(){
+  document.getElementById('sb-r').textContent=S.rows.length;
+  document.getElementById('sb-e').textContent=getEmployees().length;
+  document.getElementById('sb-p').textContent=S.projects.length;
+  document.getElementById('sb-a').textContent=S.assignments.length;
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function SE(id,msg){const e=document.getElementById(id);if(e){e.textContent=msg;e.style.display='block';}}
+function HE(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+function SEL(el,msg){if(el){el.textContent=msg;el.style.display='block';}}
+function HEL(el){if(el)el.style.display='none';}
+
+renderDash();
+</script>
+</body>
+</html>
