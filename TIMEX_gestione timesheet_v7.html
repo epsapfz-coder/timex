@@ -437,6 +437,69 @@ function getAvailMths(){const s=new Set();S.rows.forEach(r=>{const k=toMK(r.date
 //  BUILD ALLOC  alloc[empName][projId][mk][day] = hours
 //  Each day: distributes over dayHnet = row.hours - row.othHours
 // ══════════════════════════════════════════
+function getEmpDayNetMap(emp){
+  const dm={};
+  emp.entries.forEach(entry=>{
+    const mk=toMK(entry.date);
+    const pd=parseDS(entry.date);
+    if(!mk||!pd||entry.netHours<=0)return;
+    const key=`${mk}|${pd.getDate()}`;
+    dm[key]=(dm[key]||0)+entry.netHours;
+  });
+  return dm;
+}
+function getEmpDayAlloc(alloc,empName,mk,day){
+  const byEmp=alloc[empName]||{};
+  return Object.values(byEmp).reduce((s,mm)=>s+((mm?.[mk]?.[day])||0),0);
+}
+function getAssAlloc(alloc,ass){
+  const byProj=alloc?.[ass.empName]?.[ass.projectId]||{};
+  return Object.values(byProj).reduce((s,days)=>s+Object.values(days).reduce((ss,h)=>ss+h,0),0);
+}
+function rebalanceAlloc(alloc,emps){
+  S.assignments.forEach(ass=>{
+    const emp=emps.find(e=>e.name===ass.empName);
+    const proj=S.projects.find(p=>p.id===ass.projectId);
+    if(!emp||!proj)return;
+    const dayNet=getEmpDayNetMap(emp);
+    const slots=Object.entries(dayNet).filter(([k])=>{
+      const mk=k.split('|')[0];
+      return !proj.selectedMonths||proj.selectedMonths.includes(mk);
+    }).map(([k,net])=>{const [mk,day]=k.split('|');return{mk,day:Number(day),net};});
+    if(!slots.length)return;
+    const desired=rQ(ass.hours);
+    let diffU=Math.round((desired-getAssAlloc(alloc,ass))*4);
+    if(diffU===0)return;
+    if(!alloc[ass.empName])alloc[ass.empName]={};
+    if(!alloc[ass.empName][ass.projectId])alloc[ass.empName][ass.projectId]={};
+    if(diffU>0){
+      while(diffU>0){
+        let best=null,bestRem=0;
+        slots.forEach(s=>{
+          const rem=s.net-getEmpDayAlloc(alloc,ass.empName,s.mk,s.day);
+          if(rem>=0.25&&rem>bestRem){bestRem=rem;best=s;}
+        });
+        if(!best)break;
+        if(!alloc[ass.empName][ass.projectId][best.mk])alloc[ass.empName][ass.projectId][best.mk]={};
+        alloc[ass.empName][ass.projectId][best.mk][best.day]=rQ((alloc[ass.empName][ass.projectId][best.mk][best.day]||0)+0.25);
+        diffU--;
+      }
+    }else{
+      while(diffU<0){
+        let best=null,bestCur=0;
+        slots.forEach(s=>{
+          const cur=(alloc?.[ass.empName]?.[ass.projectId]?.[s.mk]?.[s.day])||0;
+          if(cur>=0.25&&cur>bestCur){bestCur=cur;best=s;}
+        });
+        if(!best)break;
+        const cur=(alloc[ass.empName][ass.projectId][best.mk][best.day]||0)-0.25;
+        if(cur<=0)delete alloc[ass.empName][ass.projectId][best.mk][best.day];
+        else alloc[ass.empName][ass.projectId][best.mk][best.day]=rQ(cur);
+        diffU++;
+      }
+    }
+  });
+}
 function buildAlloc(){
   const emps=getEmployees();
   const alloc={};
@@ -467,6 +530,7 @@ function buildAlloc(){
       });
     });
   });
+  rebalanceAlloc(alloc,emps);
   return alloc;
 }
 
@@ -483,7 +547,7 @@ function buildMatrix(proj,alloc){
     const perH=empPeriodNetH(assign.empName,proj.selectedMonths);
     // grab location for PDF
     const emp=getEmployees().find(e=>e.name===assign.empName);
-    return{empName:assign.empName,location:emp?.location||'',company:emp?.company||'',assignedHours:assign.hours,perH,months};
+    return{assignId:assign.id,empName:assign.empName,location:emp?.location||'',company:emp?.company||'',assignedHours:assign.hours,perH,months};
   }).filter(Boolean);
 }
 
@@ -763,7 +827,10 @@ function renderAssCards(){
       const perH=empPeriodNetH(a.empName,sel);
       return `<div class="emp-r">
         <div><div class="emp-rn">${esc(a.empName)}</div><div class="emp-rh">${perH.toFixed(2)}h nette nel periodo</div></div>
-        <div class="mono" style="font-size:12px;color:var(--acc)">${a.hours.toFixed(2)}h</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input id="ahv-${a.id}" type="number" min="0.25" step="0.25" value="${a.hours.toFixed(2)}" style="width:78px;padding:5px 7px;font-size:12px"/>
+          <button class="btn bs bxs" onclick="editAssFromInput('${a.id}')">Salva</button>
+        </div>
         <div class="mono" style="font-size:11px;color:var(--t3)">${emp&&perH>0?((a.hours/perH)*100).toFixed(0)+'%':''}</div>
         <button class="btn bd bxs" onclick="removeAss('${a.id}')">×</button>
       </div>`;
@@ -832,32 +899,60 @@ function updHint(projId){
   const pAvail=rQ(Math.max(0,perH-alrThis));
   hint.textContent=`max ${rQ(Math.min(pAvail,gAvail)).toFixed(2).replace('.',',')}h`;
 }
+function refreshAfterAssChange(){
+  renderAssCards();renderTS();renderDash();renderProjList();updateSB();
+}
+function validateAssTarget(ass,targetHours,errEl){
+  const proj=S.projects.find(x=>x.id===ass.projectId);
+  const emp=getEmployees().find(e=>e.name===ass.empName);
+  if(!emp||!proj){SEL(errEl,'Dati non trovati.');return false;}
+  const perH=rQ(empPeriodNetH(ass.empName,proj.selectedMonths));
+  const alrAll=empAssignedTotal(ass.empName);
+  const newAllProj=rQ(alrAll-ass.hours+targetHours);
+  if(targetHours>perH+0.001){SEL(errEl,`Ore sul progetto (${targetHours.toFixed(2)}h) superano le ore nette nel periodo (${perH.toFixed(2)}h) per ${emp.name}.`);return false;}
+  if(newAllProj>rQ(emp.totalNetHours)+0.001){SEL(errEl,`Totale ore su progetti (${newAllProj.toFixed(2)}h) supererebbe le ore nette totali (${emp.totalNetHours.toFixed(2)}h) di ${emp.name}.`);return false;}
+  HEL(errEl);
+  return true;
+}
+function setAssHours(id,rawHours,errEl){
+  const ass=S.assignments.find(a=>a.id===id);
+  if(!ass)return false;
+  if(isNaN(rawHours)||rawHours<=0){SEL(errEl,'Inserisci ore valide (> 0).');return false;}
+  const target=rQ(rawHours);
+  if(!validateAssTarget(ass,target,errEl))return false;
+  ass.hours=target;
+  return true;
+}
 function addAss(projId){
   const empName=document.getElementById('ae-'+projId)?.value;
   const rawH=parseFloat(document.getElementById('ai-'+projId)?.value);
   const errEl=document.getElementById('aerr-'+projId);
   if(!empName||isNaN(rawH)||rawH<=0){SEL(errEl,'Seleziona un dipendente e inserisci le ore.');return;}
-  const hours=rQ(rawH);
   const p=S.projects.find(x=>x.id===projId);
-  const emp=getEmployees().find(e=>e.name===empName);
-  if(!emp||!p){SEL(errEl,'Dati non trovati.');return;}
-  const perH=empPeriodNetH(empName,p.selectedMonths);
-  const alrThis=S.assignments.find(a=>a.empName===empName&&a.projectId===projId)?.hours||0;
-  const alrAll=empAssignedTotal(empName);
-  const newOnThis=rQ(alrThis+hours);
-  const newAllProj=rQ(alrAll+hours);
-  if(newOnThis>rQ(perH)+0.001){SEL(errEl,`Ore sul progetto (${newOnThis.toFixed(2)}h) superano le ore nette nel periodo (${rQ(perH).toFixed(2)}h) per ${emp.name}.`);return;}
-  if(newAllProj>rQ(emp.totalNetHours)+0.001){SEL(errEl,`Totale ore su progetti (${newAllProj.toFixed(2)}h) supererebbe le ore nette totali (${emp.totalNetHours.toFixed(2)}h) di ${emp.name}.`);return;}
-  HEL(errEl);
-  const ex=S.assignments.find(a=>a.empName===empName&&a.projectId===projId);
-  if(ex)ex.hours=rQ(ex.hours+hours);else S.assignments.push({id:uid(),empName,projectId:projId,hours});
+  if(!p){SEL(errEl,'Dati non trovati.');return;}
+  let ex=S.assignments.find(a=>a.empName===empName&&a.projectId===projId);
+  const delta=rQ(rawH);
+  if(!ex){ex={id:uid(),empName,projectId:projId,hours:0};S.assignments.push(ex);}
+  if(!setAssHours(ex.id,ex.hours+delta,errEl)){
+    if(ex.hours===0&&!(S.assignments.some(a=>a.id===ex.id&&a.hours>0)))S.assignments=S.assignments.filter(a=>a.id!==ex.id);
+    return;
+  }
   if(document.getElementById('ai-'+projId))document.getElementById('ai-'+projId).value='';
-  renderAssCards();renderDash();renderProjList();updateSB();
-  toast(`✓ ${hours.toFixed(2)}h → "${p.name}" per ${emp.name}`);
+  refreshAfterAssChange();
+  toast(`✓ ${delta.toFixed(2)}h → "${p.name}" per ${empName}`);
+}
+function editAssFromInput(id){
+  const inp=document.getElementById('ahv-'+id);
+  if(!inp)return;
+  const raw=parseFloat(inp.value);
+  if(!setAssHours(id,raw,null)){toast('⚠ Ore non valide o oltre disponibilità.');return;}
+  refreshAfterAssChange();
+  toast('✓ Ore assegnate aggiornate');
 }
 function removeAss(id){
   S.assignments=S.assignments.filter(a=>a.id!==id);
-  renderAssCards();renderDash();renderProjList();updateSB();toast('Assegnazione rimossa');
+  refreshAfterAssChange();
+  toast('Assegnazione rimossa');
 }
 
 // ══════════════════════════════════════════
@@ -883,9 +978,11 @@ function renderTS(){
       const gTot=emp.months.reduce((s,{days})=>s+Object.values(days).reduce((ss,h)=>ss+h,0),0);
       const safeEmp=esc(emp.empName).replace(/'/g,"\\'");
       return `<div style="margin-bottom:13px;">
-        <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:7px;display:flex;align-items:center;gap:8px;">
+        <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           👤 ${esc(emp.empName)}
           <span class="mono" style="font-size:10px;color:var(--t3)">${emp.assignedHours.toFixed(2)}h · ${emp.perH.toFixed(2)}h nette nel periodo</span>
+          <input id="ts-ah-${emp.assignId}" type="number" min="0.25" step="0.25" value="${emp.assignedHours.toFixed(2)}" style="width:84px;padding:4px 6px;font-size:12px"/>
+          <button class="btn bs bxs" onclick="saveTSAss('${emp.assignId}')">Salva ore</button>
           <button class="btn bbl bxs" onclick="genEmpPDF('${proj.id}','${safeEmp}')">↓ PDF</button>
         </div>
         <div class="mxw"><table>
@@ -910,6 +1007,14 @@ function renderTS(){
       <div style="padding:14px 16px;">${empSecs}</div>
     </div>`;
   }).join('');
+}
+function saveTSAss(id){
+  const inp=document.getElementById('ts-ah-'+id);
+  if(!inp)return;
+  const raw=parseFloat(inp.value);
+  if(!setAssHours(id,raw,null)){toast('⚠ Ore non valide o oltre disponibilità.');return;}
+  refreshAfterAssChange();
+  toast('✓ Ore aggiornate prima della generazione PDF');
 }
 
 // ══════════════════════════════════════════
