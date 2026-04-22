@@ -95,6 +95,7 @@ tfoot td{padding:8px 11px;font-weight:700;background:var(--s3);border-top:1px so
 .pac-body{border-top:1px solid var(--b1);padding:13px 15px;}
 .pac-body.closed{display:none;}
 .pac-sub{font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;}
+.mrange{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:flex-end;margin-bottom:10px;}
 .emp-r{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:7px 10px;border-radius:var(--r);background:var(--s3);margin-bottom:5px;}
 .emp-r:last-of-type{margin-bottom:0;}
 .emp-rn{font-size:12px;font-weight:600;}.emp-rh{font-size:11px;color:var(--t3);font-family:'Consolas',monospace;}
@@ -846,12 +847,17 @@ function renderAssCards(){
   }
   pre.style.display='none';
   const avMths=getAvailMths();
+  const sortedMths=[...avMths].sort();
   cards.innerHTML=S.projects.map(p=>{
     const sel=p.selectedMonths;
     const chips=avMths.map(mk=>{
       const[y,m]=mk.split('-');
       const on=!sel||sel.includes(mk);
       return `<span class="chip${on?' on':''}" onclick="toggleMth('${p.id}','${mk}')">${M_SH[parseInt(m)-1]} ${y}</span>`;
+    }).join('');
+    const fromOptions=sortedMths.map(mk=>{
+      const[y,m]=mk.split('-');
+      return `<option value="${mk}">${M_SH[parseInt(m)-1]} ${y}</option>`;
     }).join('');
     const assigns=S.assignments.filter(a=>a.projectId===p.id);
     const empRows=assigns.map(a=>{
@@ -898,7 +904,17 @@ function renderAssCards(){
         <span id="pa-${p.id}" style="color:var(--t3);font-size:12px;">▲</span>
       </div>
       <div class="pac-body" id="pb-${p.id}">
-        ${avMths.length?`<div><div class="pac-sub">Mesi del progetto</div><div class="chips">${chips}</div></div><div class="sep"></div>`:'<div style="font-size:12px;color:var(--t3);margin-bottom:12px">ℹ Importa dati per selezionare i mesi</div>'}
+        ${avMths.length?`<div>
+          <div class="pac-sub">Mesi del progetto</div>
+          <div class="mrange">
+            <div><label>Da mese</label><select id="mr-from-${p.id}"><option value="">Inizio</option>${fromOptions}</select></div>
+            <div><label>A mese</label><select id="mr-to-${p.id}"><option value="">Fine</option>${fromOptions}</select></div>
+            <button class="btn bs" onclick="event.stopPropagation();applyMthRange('${p.id}')" style="height:36px;">Applica intervallo</button>
+            <button class="btn bg" onclick="event.stopPropagation();resetProjMths('${p.id}')" style="height:36px;">Tutti</button>
+          </div>
+          <div class="chips">${chips}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:6px;">Puoi selezionare mesi singoli (chip) oppure un intervallo continuo da “Da mese” a “A mese”.</div>
+        </div><div class="sep"></div>`:'<div style="font-size:12px;color:var(--t3);margin-bottom:12px">ℹ Importa dati per selezionare i mesi</div>'}
         ${assigns.length?`<div><div class="pac-sub">Dipendenti assegnati</div>${empRows}</div><div class="sep"></div>`:''}
         ${addForm}
       </div>
@@ -917,6 +933,26 @@ function toggleMth(projId,mk){
   if(sel.includes(mk))sel=sel.filter(m=>m!==mk);else sel.push(mk);
   p.selectedMonths=(sel.length===av.length&&av.every(m=>sel.includes(m)))?null:sel;
   renderAssCards();
+}
+function applyMthRange(projId){
+  const p=S.projects.find(x=>x.id===projId);if(!p)return;
+  const av=getAvailMths().sort();
+  const from=document.getElementById('mr-from-'+projId)?.value||'';
+  const to=document.getElementById('mr-to-'+projId)?.value||'';
+  if(!from||!to){toast('⚠ Seleziona mese iniziale e finale.');return;}
+  let i1=av.indexOf(from),i2=av.indexOf(to);
+  if(i1<0||i2<0){toast('⚠ Mesi non disponibili nei dati importati.');return;}
+  if(i1>i2){const t=i1;i1=i2;i2=t;}
+  const range=av.slice(i1,i2+1);
+  p.selectedMonths=(range.length===av.length)?null:range;
+  renderAssCards();
+  toast(`✓ Intervallo mesi applicato (${range.length} mese${range.length===1?'':'i'})`);
+}
+function resetProjMths(projId){
+  const p=S.projects.find(x=>x.id===projId);if(!p)return;
+  p.selectedMonths=null;
+  renderAssCards();
+  toast('✓ Tutti i mesi selezionati');
 }
 function updHint(projId){
   const empName=document.getElementById('ae-'+projId)?.value;
